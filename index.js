@@ -1,5 +1,3 @@
-const qrcode = require('qrcode-terminal');
-
 const { config, validar } = require('./config');
 const { log, erro } = require('./lib/log');
 
@@ -15,13 +13,10 @@ if (erros.length > 0) {
     process.exit(1);
 }
 
-// A limpeza do Chrome/locks e a criação do Client (ver lib/cliente.js) só
-// acontecem aqui, na primeira chamada — não como efeito colateral do require.
-const { obterCliente } = require('./lib/cliente');
-const client = obterCliente();
-
+const cliente = require('./lib/cliente');
 const { AVISO_LIGACAO } = require('./lib/textos');
 const { enviar } = require('./lib/envio');
+const { adaptarMensagem } = require('./lib/mensagem');
 const { limparMapasAuxiliares } = require('./lib/estado');
 const { carregarPedidos, salvarPedidos, limparPedidosExpirados } = require('./lib/pedidos');
 const { tratarMensagem, tratarComandoDoAparelho } = require('./lib/fluxoConversa');
@@ -33,68 +28,57 @@ setInterval(() => {
 }, 60 * 60 * 1000).unref();
 
 // ---------------------------------------------------------------------------
-// Eventos do cliente
+// Eventos do WhatsApp
 // ---------------------------------------------------------------------------
 
-client.on('qr', qr => {
-    log('Leia o QR Code abaixo com o WhatsApp do Santuário:');
-    qrcode.generate(qr, { small: true });
-});
-
-client.on('authenticated', () => log('Autenticado.'));
-client.on('auth_failure', m => erro('autenticação', m));
-client.on('ready', () => log(`Bot conectado. Sessão em ${config.pastaSessao}.`));
-client.on('loading_screen', (percent, message) => log(`Carregando: ${percent}% ${message || ''}`));
-
-client.on('disconnected', motivo => {
-    log(`Desconectado (${motivo}). Encerrando para o pm2 reiniciar.`);
-    salvarPedidos();
-    process.exit(1);
-});
-
-client.on('call', async call => {
+async function tratarRecebida(bruta) {
     try {
-        await call.reject();
-    } catch (e) {
-        erro('rejeitar chamada', e);
-    }
-    await enviar(call.from, AVISO_LIGACAO);
-});
-
-// Comandos enviados pelo próprio aparelho do Santuário.
-client.on('message_create', async msg => {
-    try {
-        if (!msg.fromMe) return;
-        await tratarComandoDoAparelho(msg);
-    } catch (e) {
-        erro('message_create', e);
-    }
-});
-
-client.on('message', async msg => {
-    try {
-        await tratarMensagem(msg);
+        const msg = await adaptarMensagem(bruta, { pnDoLid: cliente.pnDoLid });
+        if (!msg) return;
+        // Mensagens com fromMe vêm do celular do Santuário (o bot não recebe
+        // as próprias: emitOwnEvents está desligado em lib/cliente.js).
+        if (msg.fromMe) await tratarComandoDoAparelho(msg);
+        else await tratarMensagem(msg);
     } catch (e) {
         erro('tratar mensagem', e);
     }
-});
+}
+
+function aoReceber(mensagens, tipo) {
+    // "notify" = chegou agora; "append" = chegou enquanto a conexão caiu por
+    // um instante. O histórico antigo também vem como "append", mas é
+    // descartado pelo filtro de horário (startupTime) no fluxo da conversa.
+    if (tipo !== 'notify' && tipo !== 'append') return;
+    for (const m of mensagens) tratarRecebida(m);
+}
+
+function aoLigar(chamadas) {
+    for (const c of chamadas) {
+        if (c.status !== 'offer' || c.isGroup) continue;
+        cliente.rejeitarLigacao(c.id, c.from)
+            .catch(e => erro('rejeitar chamada', e))
+            .then(() => enviar(c.callerPn || c.from, AVISO_LIGACAO));
+    }
+}
+
+function aoDeslogar() {
+    salvarPedidos();
+    process.exit(cliente.SAIDA_DESLOGADO);
+}
 
 // ---------------------------------------------------------------------------
 // Encerramento e erros não tratados
 // ---------------------------------------------------------------------------
 
 let encerrando = false;
-async function encerrar(sinal) {
+function encerrar(sinal) {
     if (encerrando) return;
     encerrando = true;
     log(`Recebido ${sinal}. Encerrando...`);
     salvarPedidos();
-    try {
-        await client.destroy();
-    } catch (e) {
-        erro('destruir cliente', e);
-    }
-    process.exit(0);
+    cliente.encerrar();
+    // Dá um instante para o creds.update pendente chegar ao disco.
+    setTimeout(() => process.exit(0), 500).unref();
 }
 
 process.on('SIGINT', () => encerrar('SIGINT'));
@@ -109,7 +93,8 @@ process.on('uncaughtException', e => {
 
 // ---------------------------------------------------------------------------
 
-client.initialize().catch(e => {
+log(`Iniciando. Sessão em ${config.pastaAuth}.`);
+cliente.conectar({ aoReceber, aoLigar, aoDeslogar }).catch(e => {
     erro('inicialização', e);
     process.exit(1);
 });

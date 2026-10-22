@@ -33,3 +33,18 @@ test('CMD_APROVAR reconhece o comando com e sem argumento, e não confunde com o
     assert.equal(CMD_APROVAR.test('!aprovartudo'), false);
     assert.equal(CMD_APROVAR.test('aprovar ABC'), false);
 });
+
+test('ehAdmin: verificador cadastrado no formato antigo (@c.us) é reconhecido vindo do Baileys', () => {
+    config.numerosVerificacao = ['5521999999999@c.us'];
+    assert.equal(ehAdmin({ fromMe: false, from: '5521999999999@s.whatsapp.net' }), true);
+});
+
+test('ehAdmin: verificador que chega como @lid é reconhecido pelo número alternativo', () => {
+    config.numerosVerificacao = ['5521999999999'];
+    assert.equal(ehAdmin({
+        fromMe: false,
+        from: '120363000000000000@g.us',
+        author: '128277788291105@lid',
+        authorAliases: ['128277788291105@lid', '5521999999999@s.whatsapp.net']
+    }), true);
+});
