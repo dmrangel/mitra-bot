@@ -1,0 +1,109 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+
+const envio = require('../lib/envio');
+const enviados = [];
+envio.enviar = async (destino, texto) => { enviados.push({ destino, texto }); return true; };
+
+const { adaptarMensagem } = require('../lib/mensagem');
+
+function bruta(overrides = {}, message = { conversation: 'oi' }) {
+    return {
+        key: { remoteJid: '5521999999999@s.whatsapp.net', fromMe: false, id: 'ABC', ...overrides },
+        message,
+        messageTimestamp: 1700000000,
+        pushName: 'Maria'
+    };
+}
+
+test('texto simples vira { from, body, hasMedia: false }', async () => {
+    const msg = await adaptarMensagem(bruta());
+    assert.equal(msg.from, '5521999999999@s.whatsapp.net');
+    assert.equal(msg.body, 'oi');
+    assert.equal(msg.hasMedia, false);
+    assert.equal(msg.fromMe, false);
+    assert.equal(msg.timestamp, 1700000000);
+    assert.equal(msg.author, undefined);
+});
+
+test('texto estendido (com link ou resposta) também é lido', async () => {
+    const msg = await adaptarMensagem(bruta({}, { extendedTextMessage: { text: 'quero o pix' } }));
+    assert.equal(msg.body, 'quero o pix');
+});
+
+test('mensagem temporária é desembrulhada', async () => {
+    const msg = await adaptarMensagem(bruta({}, { ephemeralMessage: { message: { conversation: '1' } } }));
+    assert.equal(msg.body, '1');
+});
+
+test('foto, áudio, figurinha e localização contam como mídia', async () => {
+    for (const conteudo of [
+        { imageMessage: { caption: 'olha' } },
+        { audioMessage: {} },
+        { stickerMessage: {} },
+        { locationMessage: {} }
+    ]) {
+        const msg = await adaptarMensagem(bruta({}, conteudo));
+        assert.equal(msg.hasMedia, true, JSON.stringify(conteudo));
+    }
+});
+
+test('reação, apagar/editar e mensagens sem conteúdo são ignoradas (não recebem o menu)', async () => {
+    assert.equal(await adaptarMensagem(bruta({}, { reactionMessage: { text: '🙏' } })), null);
+    assert.equal(await adaptarMensagem(bruta({}, { protocolMessage: { type: 0 } })), null);
+    assert.equal(await adaptarMensagem(bruta({}, { senderKeyDistributionMessage: {} })), null);
+    assert.equal(await adaptarMensagem(bruta({}, null)), null);
+    assert.equal(await adaptarMensagem(null), null);
+});
+
+test('contato @lid com número alternativo usa o número como id e guarda os dois', async () => {
+    const msg = await adaptarMensagem(bruta({
+        remoteJid: '128277788291105@lid',
+        remoteJidAlt: '5521999999999@s.whatsapp.net'
+    }));
+    assert.equal(msg.from, '5521999999999@s.whatsapp.net');
+    assert.ok(msg.aliases.includes('128277788291105@lid'));
+    assert.deepEqual(await msg.getContact(), { pushname: 'Maria', number: '5521999999999' });
+});
+
+test('contato @lid sem número alternativo consulta o vínculo lid -> número', async () => {
+    const msg = await adaptarMensagem(
+        bruta({ remoteJid: '128277788291105@lid' }),
+        { pnDoLid: async () => '5521888888888@s.whatsapp.net' }
+    );
+    assert.equal(msg.from, '5521888888888@s.whatsapp.net');
+});
+
+test('contato @lid sem vínculo conhecido continua como @lid e sem número', async () => {
+    const msg = await adaptarMensagem(
+        bruta({ remoteJid: '128277788291105@lid' }),
+        { pnDoLid: async () => { throw new Error('sem vínculo'); } }
+    );
+    assert.equal(msg.from, '128277788291105@lid');
+    assert.equal((await msg.getContact()).number, '');
+});
+
+test('em grupo, author é quem escreveu e o contato é o autor', async () => {
+    const msg = await adaptarMensagem(bruta({
+        remoteJid: '120363000000000000@g.us',
+        participant: '128277788291105@lid',
+        participantAlt: '5521777777777@s.whatsapp.net'
+    }));
+    assert.equal(msg.from, '120363000000000000@g.us');
+    assert.equal(msg.author, '5521777777777@s.whatsapp.net');
+    assert.ok(msg.authorAliases.includes('128277788291105@lid'));
+    assert.equal((await msg.getContact()).number, '5521777777777');
+});
+
+test('horário em Long (protobuf) vira número de segundos', async () => {
+    const w = bruta();
+    w.messageTimestamp = { toNumber: () => 1700000123 };
+    assert.equal((await adaptarMensagem(w)).timestamp, 1700000123);
+});
+
+test('reply() responde na mesma conversa', async () => {
+    enviados.length = 0;
+    const msg = await adaptarMensagem(bruta());
+    await msg.reply('teste');
+    assert.deepEqual(enviados, [{ destino: '5521999999999@s.whatsapp.net', texto: 'teste' }]);
+});

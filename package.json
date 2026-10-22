@@ -1,34 +1,32 @@
 {
-  "name": "mitra_whatsapp",
+  "name": "mitra-bot",
   "version": "1.0.0",
-  "description": "",
+  "description": "Bot de atendimento do WhatsApp do Santuário de Santa Rita (Baileys).",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
     "test": "node --test \"test/**/*.test.js\"",
-    "check": "node --check index.js && node --check config.js && node --check menu.js"
+    "check": "node scripts/check.js"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/dmrangel/mitra_whatsapp.git"
+    "url": "git+https://github.com/dmrangel/mitra-bot.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "bugs": {
-    "url": "https://github.com/dmrangel/mitra_whatsapp/issues"
+    "url": "https://github.com/dmrangel/mitra-bot/issues"
   },
-  "homepage": "https://github.com/dmrangel/mitra_whatsapp#readme",
+  "homepage": "https://github.com/dmrangel/mitra-bot#readme",
   "dependencies": {
+    "@whiskeysockets/baileys": "7.0.0-rc14",
     "dotenv": "^17.3.1",
-    "qrcode-terminal": "^0.12.0",
-    "whatsapp-web.js": "^1.34.6"
+    "pino": "^9.14.0"
   },
-  "overrides": {
-    "puppeteer": "24.38.0"
-  }
+  "private": true
 }

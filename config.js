@@ -1,5 +1,6 @@
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 
+const fs = require('fs');
 const path = require('path');
 
 function lista(valor) {
@@ -14,26 +15,24 @@ function inteiro(valor, padrao) {
     return Number.isFinite(n) && n > 0 ? n : padrao;
 }
 
+function inteiroOuZero(valor, padrao) {
+    const n = parseInt(valor, 10);
+    return Number.isFinite(n) && n >= 0 ? n : padrao;
+}
+
 function texto(valor, padrao = '') {
     const v = String(valor || '').trim();
     return v || padrao;
 }
 
 const config = {
-    // Identificador da sessão. VAZIO (padrão) = pasta .wwebjs_auth/session,
-    // que é exatamente o que o LocalAuth() sem argumentos sempre usou.
-    // Preencher cria .wwebjs_auth/session-<SESSION_ID>, uma sessão NOVA, e
-    // obriga a ler o QR Code de novo.
-    sessionId: texto(process.env.SESSION_ID),
+    // Número do próprio bot, só dígitos com DDI e DDD (ex.: 5521999999999).
+    // Usado uma única vez, para gerar o código de pareamento.
+    numeroBot: String(process.env.NUMERO_BOT || '').replace(/\D/g, ''),
 
-    // Caminho do Chrome/Chromium. Vazio = usa o Chromium que vem com o puppeteer.
-    chromePath: texto(process.env.CHROME_PATH) || undefined,
-
-    // Versão do WhatsApp Web a fixar. Vazio = deixa a biblioteca escolher (recomendado).
-    webVersion: texto(process.env.WEB_VERSION),
-
-    // Mata processos do Chrome/Chromium antes de subir. Só use no servidor dedicado.
-    limparChrome: process.env.LIMPAR_CHROME === 'true',
+    // Nível de log interno do Baileys (fatal, error, warn, info, debug).
+    // Acima de "warn" ele imprime detalhes das mensagens: não use em produção.
+    nivelLogBaileys: texto(process.env.LOG_BAILEYS, 'warn'),
 
     // Destinos (privados - nunca versionar)
     gruposOracao: lista(process.env.GRUPOS_ORACAO),
@@ -55,23 +54,34 @@ const config = {
     intervaloPedidoMs: inteiro(process.env.INTERVALO_PEDIDO_SEGUNDOS, 30) * 1000,
     validadePedidoMs: inteiro(process.env.VALIDADE_PEDIDO_DIAS, 7) * 24 * 60 * 60 * 1000,
 
+    // Anti-banimento: "digitando..." antes de cada resposta e teto de envios.
+    atrasoRespostaMs: inteiroOuZero(process.env.ATRASO_RESPOSTA_MS, 1200),
+    limiteEnviosMinuto: inteiro(process.env.LIMITE_ENVIOS_MINUTO, 30),
+
     // Telefones públicos da secretaria (os mesmos que já aparecem no menu)
     telefones: lista(process.env.TELEFONES_SECRETARIA).length
         ? lista(process.env.TELEFONES_SECRETARIA)
         : ['(21) 2253-7564', '(21) 97908-2767'],
 
     arquivoPedidos: path.join(__dirname, 'pedidos.json'),
-    pastaAuth: path.join(__dirname, '.wwebjs_auth')
+    // A sessão do WhatsApp. Esta pasta É a conta: fora do Git, chmod 700.
+    pastaAuth: path.join(__dirname, 'auth')
 };
 
-// Mesma regra de nomenclatura usada internamente pelo LocalAuth.
-config.pastaSessao = path.join(
-    config.pastaAuth,
-    config.sessionId ? `session-${config.sessionId}` : 'session'
-);
+// Pessoa: número puro, @s.whatsapp.net, @c.us (formato antigo, aceito) ou @lid.
+// Grupo: @g.us.
+const ID_VALIDO = /^(\+?\d{8,15}|[^@\s]+@(s\.whatsapp\.net|c\.us|lid|g\.us))$/;
 
-// Um id válido termina em @c.us (pessoa), @lid (pessoa, formato novo) ou @g.us (grupo).
-const ID_VALIDO = /@(c\.us|lid|g\.us)$/;
+// O creds.json é criado já na primeira tentativa; "registered" só vira true
+// depois que o código de pareamento foi digitado no celular.
+function jaPareado() {
+    try {
+        const creds = JSON.parse(fs.readFileSync(path.join(config.pastaAuth, 'creds.json'), 'utf8'));
+        return creds.registered === true;
+    } catch (e) {
+        return false;
+    }
+}
 
 function validar() {
     const erros = [];
@@ -89,9 +99,11 @@ function validar() {
     if (config.modoTeste && !config.numeroTeste) {
         erros.push('MODO_TESTE=true exige NUMERO_TESTE preenchido, senão o bot ignora todo mundo.');
     }
-    // O LocalAuth lança exceção com clientId fora deste formato.
-    if (config.sessionId && !/^[-_\w]+$/i.test(config.sessionId)) {
-        erros.push(`SESSION_ID inválido ("${config.sessionId}"): use apenas letras, números, "-" e "_".`);
+    if (config.numeroBot && !/^\d{10,15}$/.test(config.numeroBot)) {
+        erros.push(`NUMERO_BOT inválido ("${config.numeroBot}"): use só dígitos com DDI e DDD, ex.: 5521999999999.`);
+    }
+    if (!config.numeroBot && !jaPareado()) {
+        erros.push('NUMERO_BOT está vazio e ainda não há sessão salva: sem ele não dá para gerar o código de pareamento.');
     }
 
     const campos = {
@@ -103,15 +115,15 @@ function validar() {
     for (const [nome, valores] of Object.entries(campos)) {
         for (const v of valores) {
             if (!ID_VALIDO.test(v)) {
-                avisos.push(`${nome}: "${v}" não termina em @c.us, @lid ou @g.us — provavelmente não vai funcionar.`);
+                avisos.push(`${nome}: "${v}" não é um número nem termina em @s.whatsapp.net, @c.us, @lid ou @g.us — provavelmente não vai funcionar.`);
             }
         }
     }
     if (config.numeroTeste && !ID_VALIDO.test(config.numeroTeste)) {
-        avisos.push(`NUMERO_TESTE: "${config.numeroTeste}" precisa do sufixo @c.us ou @lid.`);
+        avisos.push(`NUMERO_TESTE: "${config.numeroTeste}" não parece um número nem um id de pessoa.`);
     }
 
     return { erros, avisos };
 }
 
-module.exports = { config, validar };
+module.exports = { config, validar, jaPareado };

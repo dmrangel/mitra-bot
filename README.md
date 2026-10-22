@@ -2,22 +2,34 @@
 
 Bot de atendimento automático do WhatsApp do Santuário de Santa Rita.
 
-Feito com [whatsapp-web.js](https://github.com/pedroslopez/whatsapp-web.js).
-**Não usa nenhuma API paga e não precisa de API key.** A autenticação é feita
-lendo um QR Code com o celular do Santuário, e a sessão fica salva na pasta
-`.wwebjs_auth/`.
+Feito com [Baileys](https://github.com/WhiskeySockets/Baileys), que conversa
+direto com o WhatsApp por WebSocket, **sem navegador** (o antigo whatsapp-web.js
+abria um Chromium inteiro; o Baileys sobe com ~120 MB de RAM). Não usa API paga nem API key. O bot entra
+como um *aparelho conectado* do celular do Santuário, pareado por **código de
+8 letras**, e a sessão fica salva na pasta `auth/`.
+
+> **A pasta `auth/` é a conta do WhatsApp.** Quem tiver esses arquivos controla o
+> número. Ela fica fora do Git, com `chmod 700`, e nunca deve ser copiada sem
+> criptografia nem colada em lugar nenhum.
+
+> **Biblioteca não oficial.** Assim como o whatsapp-web.js, o Baileys não é
+> autorizado pelo WhatsApp: existe risco de o número ser banido. O bot só
+> responde a quem escreveu, mostra "digitando" antes de responder e limita o
+> envio por minuto, que é o perfil de menor risco. Nunca use para disparar
+> mensagens em massa.
 
 ---
 
 ## 1. Instalação
 
-Requisitos: **Node.js 18 ou superior** e, opcionalmente, **pm2** para manter o
-bot rodando em segundo plano.
+Requisitos: **Node.js 20 ou superior** e **pm2**.
 
 ```bash
-npm install
-npm install -g pm2      # opcional, recomendado no servidor
+npm ci --omit=dev
 ```
+
+A instalação na VM Oracle (chaves, pareamento, deploy automático) está passo a
+passo em [`docs/VM.md`](docs/VM.md).
 
 ## 2. Configuração
 
@@ -34,39 +46,46 @@ Variáveis obrigatórias:
 |---|---|
 | `GRUPOS_ORACAO` | Grupo(s) onde os pedidos **aprovados** são publicados |
 | `NUMEROS_VERIFICACAO` | Quem recebe os pedidos para aprovar e pode usar `!pedidos` / `!aprovar` |
+| `NUMERO_BOT` | Número do aparelho do bot (só dígitos, com 55 e DDD). Só é usado para parear |
 
-O bot **não sobe** se essas duas estiverem vazias — ele avisa exatamente o que
+O bot **não sobe** se alguma delas estiver vazia — ele avisa exatamente o que
 falta em vez de rodar quebrado.
 
 ### Como descobrir os IDs
 
-Com o bot no ar, envie `!idgrupo` dentro do grupo desejado, a partir de um
-número que já esteja em `NUMEROS_VERIFICACAO`. O bot responde com o ID.
+Com o bot no ar, envie `!idgrupo` dentro do grupo desejado, a partir do próprio
+celular do Santuário ou de um número que já esteja em `NUMEROS_VERIFICACAO`. O
+bot responde com o ID.
 
-Formatos:
-- Pessoa: `5521999999999@c.us` (ou `000000000000000@lid`, formato novo)
+Formatos aceitos:
+- Pessoa: `5521999999999` (número puro), `5521999999999@s.whatsapp.net`, ou
+  `5521999999999@c.us` (formato do bot antigo; o `.env` antigo continua valendo)
+- Pessoa no formato novo do WhatsApp: `000000000000000@lid`
 - Grupo: `120363000000000000@g.us`
 
 ## 3. Rodando
 
 ```bash
-npm start                          # primeiro plano, mostra o QR Code
-pm2 start ecosystem.config.js      # segundo plano (servidor)
-pm2 logs mitra_bot                 # ver o QR Code / os logs
-pm2 stop mitra_bot
+npm start                          # primeiro plano
+pm2 start ecosystem.config.cjs     # segundo plano (servidor)
+pm2 logs mitra-bot                 # ver o código de pareamento / os logs
+pm2 stop mitra-bot
 ```
 
-No Windows, `ligar_bot.bat` faz tudo isso (checa o `.env`, instala as
-dependências se faltarem e sobe pelo pm2).
+**Primeira execução (pareamento):** com `NUMERO_BOT` preenchido, o log mostra
+`CÓDIGO DE PAREAMENTO: ABCD-EFGH`. No celular do bot: *Aparelhos conectados >
+Conectar aparelho > Conectar com número de telefone* e digite o código. Ele
+vale por poucos minutos; se expirar, um novo aparece no log. Depois disso a
+sessão fica em `auth/` e o código não aparece mais.
 
-Na **primeira execução** aparece um QR Code no terminal. Leia com o WhatsApp do
-Santuário em *Aparelhos conectados*. Depois disso a sessão fica salva e o QR
-não aparece mais.
+**Nunca rode duas cópias do bot no mesmo número** (por exemplo, no PC e na
+VM): as duas responderiam a cada mensagem.
 
-Verificar se os arquivos estão sem erro de sintaxe:
+Conferir sintaxe e rodar os testes:
 
 ```bash
 npm run check
+npm test
 ```
 
 ## 4. Comandos administrativos
@@ -77,6 +96,7 @@ Do próprio aparelho do Santuário, dentro da conversa:
 |---|---|
 | `!manual` | Pausa o bot **nesta conversa** para atender à mão |
 | `!auto` | Devolve a conversa para o bot |
+| `!pedidos`, `!aprovar <ID>`, `!idgrupo` | Iguais aos de baixo |
 
 De qualquer número listado em `NUMEROS_VERIFICACAO` (ou do próprio aparelho):
 
@@ -114,34 +134,33 @@ Assim o bot só responde a esse número.
 | `menu.js` | Textos das respostas e palavras-chave (informação pública) |
 | `.env` | Números, grupos e tempos (**privado**) |
 | `config.js` | Leitura e validação do `.env` |
-| `index.js` | Lógica do atendimento |
+| `lib/fluxoConversa.js` | Lógica do atendimento |
+| `lib/cliente.js` | Conexão com o WhatsApp (Baileys), reconexão, pareamento |
+| `lib/mensagem.js` | Converte a mensagem do Baileys para o formato usado pelo fluxo |
+| `lib/envio.js` | Envio com "digitando" e limite por minuto |
+| `deploy.sh`, `.github/workflows/deploy.yml` | Deploy automático na VM |
 
 Para mudar um horário ou um valor, mexa **só no `menu.js`**.
 
 ## 8. Problemas comuns
 
-**O QR Code não aparece / fica reconectando**
-O WhatsApp mudou de versão. Deixe `WEB_VERSION=` vazio (padrão) para a
-biblioteca escolher sozinha. Se ainda assim quebrar, atualize a biblioteca:
+**O código de pareamento não é aceito no celular**
+Confira `NUMERO_BOT`: precisa ser exatamente o número registrado no WhatsApp,
+com 55 e DDD. Números antigos às vezes estão registrados **sem o 9** inicial;
+tente a outra forma. Depois de mudar, apague `auth/` e reinicie.
 
-```bash
-npm install whatsapp-web.js@latest
-```
+**O bot parou e o pm2 não reinicia (status `stopped`)**
+O WhatsApp desconectou o aparelho (alguém removeu em *Aparelhos conectados*, ou
+a sessão expirou). O log diz `O WhatsApp encerrou a sessão`. Para parear de
+novo: `rm -rf auth && pm2 restart mitra-bot` e siga o código do log.
 
-**`Failed to launch the browser process`**
-`CHROME_PATH` está errado. Deixe **vazio** para usar o Chromium que já vem com
-o puppeteer, ou aponte para o caminho certo:
-- Linux: `/usr/bin/chromium-browser`
-- Windows: `C:\Program Files\Google\Chrome\Application\chrome.exe`
+**Fica reconectando / caiu depois de uma atualização do WhatsApp**
+O WhatsApp mudou algo no protocolo. Atualize a biblioteca:
+`npm install @whiskeysockets/baileys@latest`, rode `npm test`, faça commit e
+push na `main`: o deploy é automático.
 
 **O bot não responde ninguém**
 Confira se `MODO_TESTE` está `false`, e se o número não caiu na `BLACKLIST`.
 
 **Pedi para o bot parar numa conversa e ele não volta**
 Envie `!auto` naquela conversa.
-
-**Perdi a sessão e quero ler o QR de novo**
-Apague a pasta `.wwebjs_auth/` e suba o bot novamente.
-
-> `LIMPAR_CHROME=true` mata **todos** os processos do Chrome da máquina. Use
-> apenas no servidor dedicado, nunca num computador de uso pessoal.

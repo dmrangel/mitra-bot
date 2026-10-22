@@ -3,6 +3,10 @@ const assert = require('node:assert/strict');
 
 const { config, validar } = require('../config');
 
+// Sem sessão salva, NUMERO_BOT é obrigatório. Os testes partem de um número
+// válido e só o tiram de propósito.
+config.numeroBot = '5521999999999';
+
 // Cada teste mexe em campos do config (que é um singleton compartilhado) e
 // devolve tudo como estava, pra não vazar estado entre os testes.
 function comConfigTemporaria(alteracoes, fn) {
@@ -21,8 +25,7 @@ test('config válida não produz erros bloqueantes', () => {
         numerosVerificacao: ['5521999999999@c.us'],
         gruposOracao: ['grupo@g.us'],
         gruposNotificacaoHumano: ['grupo@g.us'],
-        modoTeste: false,
-        sessionId: ''
+        modoTeste: false
     }, () => {
         const { erros } = validar();
         assert.deepEqual(erros, []);
@@ -67,18 +70,43 @@ test('MODO_TESTE ligado sem NUMERO_TESTE bloqueia', () => {
     });
 });
 
-test('SESSION_ID com caracteres inválidos bloqueia', () => {
+test('NUMERO_BOT vazio sem sessão salva bloqueia (não daria para parear)', () => {
     comConfigTemporaria({
         numerosVerificacao: ['5521999999999@c.us'],
         gruposOracao: ['grupo@g.us'],
-        sessionId: 'tem espaço!'
+        numeroBot: '',
+        pastaAuth: '/caminho/que/nao/existe'
     }, () => {
         const { erros } = validar();
-        assert.ok(erros.some(e => e.includes('SESSION_ID')));
+        assert.ok(erros.some(e => e.includes('NUMERO_BOT')));
     });
 });
 
-test('ids fora do formato @c.us/@lid/@g.us geram aviso, não erro', () => {
+test('NUMERO_BOT curto demais bloqueia', () => {
+    comConfigTemporaria({
+        numerosVerificacao: ['5521999999999@c.us'],
+        gruposOracao: ['grupo@g.us'],
+        numeroBot: '12345'
+    }, () => {
+        const { erros } = validar();
+        assert.ok(erros.some(e => e.includes('NUMERO_BOT')));
+    });
+});
+
+test('ids no formato do Baileys, antigo (@c.us), @lid e número puro são aceitos sem aviso', () => {
+    comConfigTemporaria({
+        numerosVerificacao: ['5521999999999@s.whatsapp.net', '5521888888888@c.us', '128277788291105@lid', '5521777777777'],
+        gruposOracao: ['120363000000000000@g.us'],
+        gruposNotificacaoHumano: ['120363000000000000@g.us'],
+        blacklist: []
+    }, () => {
+        const { erros, avisos } = validar();
+        assert.deepEqual(erros, []);
+        assert.deepEqual(avisos, []);
+    });
+});
+
+test('ids fora do formato geram aviso, não erro', () => {
     comConfigTemporaria({
         numerosVerificacao: ['numero-sem-sufixo'],
         gruposOracao: ['grupo@g.us']

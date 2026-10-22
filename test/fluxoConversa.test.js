@@ -1,7 +1,15 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
+const os = require('os');
+const path = require('path');
+
 const { config } = require('../config');
+
+// Os pedidos criados aqui não podem ir para o pedidos.json de verdade: rodar
+// os testes na VM apagaria a fila de pedidos aguardando aprovação.
+config.arquivoPedidos = path.join(os.tmpdir(), `mitra-bot-teste-fluxo-${process.pid}.json`);
+test.after(() => require('fs').rmSync(config.arquivoPedidos, { force: true }));
 const { startupTime } = require('../lib/startup');
 const { MENU_PRINCIPAL } = require('../lib/textos');
 
@@ -202,4 +210,23 @@ test('mensagem anterior ao boot do processo é ignorada', async () => {
     const msg = criarMsg({ body: '1', timestamp: startupTime - 100 });
     await tratarMensagem(msg);
     assert.equal(enviados.length, 0);
+});
+
+test('blacklist no formato antigo (@c.us) também bloqueia contatos que chegam pelo Baileys', async () => {
+    config.blacklist = ['5521912340000@c.us'];
+    const msg = criarMsg({ from: '5521912340000@s.whatsapp.net', body: 'oi' });
+    await tratarMensagem(msg);
+    assert.equal(enviados.length, 0);
+});
+
+test('modo teste reconhece o número de teste mesmo quando a conversa chega como @lid', async () => {
+    config.modoTeste = true;
+    config.numeroTeste = '5521912345678';
+    const msg = criarMsg({
+        from: '128277788291105@lid',
+        aliases: ['128277788291105@lid', '5521912345678@s.whatsapp.net'],
+        body: 'oi'
+    });
+    await tratarMensagem(msg);
+    assert.ok(enviados.some(e => e.destino === msg.from));
 });

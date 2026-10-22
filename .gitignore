@@ -7,3 +7,6 @@ todo.txt
 pedidos.json
 logs/
 npm-debug.log*
+# Sessão do WhatsApp (Baileys). ESTA PASTA É A CONTA: nunca versionar.
+auth/
+.deploy.lock
