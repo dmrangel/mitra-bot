@@ -41,6 +41,11 @@ const HORARIO_SECRETARIA = DADOS.horarioSecretaria
     .map(f => `• ${f.rotulo}: ${hora(f.abre)} às ${hora(f.fecha)}`)
     .join('\n');
 const VOLTAR = 'Para voltar ao menu, envie *voltar*.';
+// Repetidos na opção 3 e no pedido de certidão.
+const CERTIDAO_TAXA = `• Taxa: R$ 15, pelo PIX ${DADOS.pix}
+• Prazo: 7 dias. Ligue antes para confirmar.`;
+const CERTIDAO_CURIA = `Batizados antes de 1901: procure o arquivo da Cúria
+📞 2240-2869 · ✉️ arquivodacuriarj@arqrio.org.br`;
 
 // --- Menu -----------------------------------------------------------------
 //
@@ -52,8 +57,10 @@ const VOLTAR = 'Para voltar ao menu, envie *voltar*.';
 //            ninguém perguntou.
 // resposta:  o texto enviado. Pode ser uma função que recebe
 //            { secretariaAberta } quando o texto depende do horário.
-// acao:      'oracao' (o próximo texto vira pedido de oração) ou
+// acao:      'oracao' (o próximo texto vira pedido de oração),
+//            'certidao' (o próximo texto vai para a equipe de atendimento) ou
 //            'atendente' (pausa o bot e avisa a equipe). Sem acao = só responde.
+// noMenu:    true = não aparece no menu numerado; só por palavra-chave.
 
 const OPCOES = [
     {
@@ -103,19 +110,10 @@ ${VOLTAR}`,
         id: '3',
         titulo: 'Batismo e certidões',
         palavras: [
-            'batismo', 'batismos', 'batizado', 'batizar', 'batizados', 'certidao',
-            'certidoes', 'certidao de batismo', 'padrinho', 'padrinhos', 'madrinha',
-            'madrinhas', 'curia', 'bebe', 'nenem'
+            'batismo', 'batismos', 'batizado', 'batizar', 'batizados', 'padrinho', 'padrinhos',
+            'madrinha', 'madrinhas', 'bebe', 'nenem'
         ],
         resposta: `💧 *Batismo e certidões*
-
-*Certidão de batismo* (batizados a partir de 1901)
-Para pedir, informe: nome completo, data de nascimento, data ou ano do batismo e nome dos pais.
-• Taxa: R$ 15, pelo PIX ${DADOS.pix}
-• Prazo: 7 dias. Ligue antes para confirmar.
-
-Batizados antes de 1901: procure o arquivo da Cúria
-📞 2240-2869 · ✉️ arquivodacuriarj@arqrio.org.br
 
 *Batismo de crianças* (até 6 anos)
 • Batizado: último sábado do mês, às 11h
@@ -125,7 +123,39 @@ Batizados antes de 1901: procure o arquivo da Cúria
 • Agendamento: pessoalmente, na secretaria
 • Valor: R$ 50 (vela e certificado)
 
+*Certidão de batismo* (batizados a partir de 1901)
+${CERTIDAO_TAXA}
+Para pedir por aqui, envie *certidão*.
+
+${CERTIDAO_CURIA}
+
 Dúvidas: ${TELEFONES}`
+    },
+    {
+        // Fora do menu numerado: chega-se aqui pela opção 3 ("envie certidão")
+        // ou escrevendo direto "preciso da certidão de batismo". O texto
+        // seguinte da pessoa vai para a equipe de atendimento.
+        id: 'certidao',
+        noMenu: true,
+        titulo: 'Pedido de certidão de batismo',
+        palavras: [
+            'certidao', 'certidoes', 'certidao de batismo', 'segunda via', 'curia'
+        ],
+        resposta: `📄 *Pedido de certidão de batismo*
+
+Envie numa única mensagem:
+• nome completo
+• data de nascimento
+• data ou ano do batismo
+• nome dos pais
+
+Vale para batizados a partir de 1901.
+${CERTIDAO_TAXA}
+
+${CERTIDAO_CURIA}
+
+${VOLTAR}`,
+        acao: 'certidao'
     },
     {
         id: '4',
@@ -222,7 +252,7 @@ const MENU_PRINCIPAL = `Olá! Seja bem-vindo(a) ao atendimento do *${DADOS.nome}
 
 Responda com o *número* do assunto:
 
-${OPCOES.map(o => `*${o.id}* · ${o.titulo}`).join('\n')}
+${OPCOES.filter(o => !o.noMenu).map(o => `*${o.id}* · ${o.titulo}`).join('\n')}
 
 _Este número não recebe ligações._`;
 
@@ -243,6 +273,12 @@ const MSG = {
     pedidoSoTexto: `Para encaminhar seu pedido, ele precisa ser escrito em texto. 🙏\n\n${VOLTAR}`,
     pedidoRepetido: `Acabamos de receber um pedido seu e ele já está com a nossa equipe. 🙏 Aguarde alguns segundos antes de enviar outro.\n\n${VOLTAR}`,
     pedidoRecebido: 'Recebemos seu pedido de oração. 🙏 Nossa equipe vai rezar pela sua intenção.\n\nSe precisar de mais alguma coisa, envie *menu*.',
+
+    // Pedido de certidão
+    certidaoSoTexto: `Para encaminhar o pedido, envie os dados em texto.\n\n${VOLTAR}`,
+    certidaoRecebida: secretariaAberta => (secretariaAberta
+        ? `📄 Recebemos seu pedido de certidão e já encaminhamos à secretaria. Um secretário vai responder por aqui para confirmar o pagamento e o prazo.\n\n${VOLTAR}`
+        : `📄 Recebemos seu pedido de certidão. A secretaria está fechada agora; um secretário vai responder por aqui quando reabrirmos, para confirmar o pagamento e o prazo.\n\n${VOLTAR}`),
 
     avisoLigacao: `📵 *Este número não recebe ligações.*
 
@@ -276,6 +312,16 @@ ${texto}`,
 *WhatsApp:* ${link}
 ${secretariaAberta ? '' : '\n_Chegou fora do horário da secretaria._\n'}
 A pessoa está aguardando um secretário. As respostas automáticas ficam pausadas na conversa dela por algumas horas; para religar antes, envie *!auto* na conversa.`,
+
+        certidao: ({ nome, link, texto, secretariaAberta }) => `📄 *Pedido de certidão de batismo*
+
+*Nome:* ${nome}
+*WhatsApp:* ${link}
+${secretariaAberta ? '' : '\n_Chegou fora do horário da secretaria._\n'}
+*Dados enviados:*
+${texto}
+
+A pessoa aguarda um secretário para confirmar pagamento (R$ 15) e prazo. As respostas automáticas ficam pausadas na conversa dela por algumas horas; para religar antes, envie *!auto* na conversa.`,
 
         semPedidos: 'Nenhum pedido aguardando aprovação.',
         listaPedidos: pedidos => `📋 *Pedidos aguardando aprovação*\n\n${pedidos

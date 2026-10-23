@@ -453,3 +453,54 @@ test('!manual e !auto pelo celular do Santuário pausam e religam a conversa', a
     await tratarMensagem(criarMsg({ from: chatId, body: '5', timestamp: startupTime + 11 }));
     assert.match(enviados.find(e => e.destino === chatId).texto, /Doações/);
 });
+
+// --- Pedido de certidão -------------------------------------------------------
+
+test('certidão: "certidão" pede os dados; o texto seguinte vai para o atendimento e a conversa fica com a secretaria', async () => {
+    const chatId = novoChatId();
+
+    await tratarMensagem(criarMsg({ from: chatId, body: 'certidão' }));
+    assert.match(enviados.find(e => e.destino === chatId).texto, /Pedido de certidão de batismo/);
+    assert.equal(estado.modoDe(chatId), MODO.CERTIDAO);
+
+    enviados.length = 0;
+    const dados = 'Maria da Silva, nasc. 01/02/1990, batizada em 1990, pais João e Ana';
+    await tratarMensagem(criarMsg({ from: chatId, body: dados, timestamp: startupTime + 11 }));
+
+    const aviso = enviados.find(e => e.destino === 'grupo-humano@g.us');
+    assert.ok(aviso, 'deveria avisar o mesmo destino do atendimento humano');
+    assert.match(aviso.texto, /Pedido de certidão de batismo/);
+    assert.ok(aviso.texto.includes(dados));
+    assert.match(enviados.find(e => e.destino === chatId).texto, /Recebemos seu pedido de certidão/);
+    assert.equal(estado.modoDe(chatId), MODO.ATENDENTE);
+    assert.equal(pedidos.pedidosPendentes.size, 0, 'certidão não entra na fila de oração');
+});
+
+test('certidão: sem grupo de atendimento, vai para NUMEROS_VERIFICACAO', async () => {
+    config.gruposNotificacaoHumano = [];
+    const chatId = novoChatId();
+    estado.definirModo(chatId, MODO.CERTIDAO);
+
+    await tratarMensagem(criarMsg({ from: chatId, body: 'José, 1985, pais X e Y' }));
+
+    assert.ok(enviados.some(e => e.destino === '5521999999999@c.us' && /certidão/.test(e.texto)));
+});
+
+test('certidão: escrever direto "preciso da certidão de batismo" já pede os dados', async () => {
+    const msg = criarMsg({ body: 'preciso da certidão de batismo do meu filho' });
+    await tratarMensagem(msg);
+    assert.equal(estado.modoDe(msg.from), MODO.CERTIDAO);
+});
+
+test('certidão: foto pede texto; "voltar" volta ao menu sem avisar ninguém', async () => {
+    const chatId = novoChatId();
+    estado.definirModo(chatId, MODO.CERTIDAO);
+
+    await tratarMensagem(criarMsg({ from: chatId, hasMedia: true }));
+    assert.deepEqual(enviados, [{ destino: chatId, texto: MSG.certidaoSoTexto }]);
+
+    enviados.length = 0;
+    await tratarMensagem(criarMsg({ from: chatId, body: 'voltar' }));
+    assert.deepEqual(enviados, [{ destino: chatId, texto: MSG.voltouAoMenu }]);
+    assert.equal(estado.modoDe(chatId), MODO.MENU);
+});

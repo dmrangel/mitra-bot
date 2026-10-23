@@ -53,7 +53,7 @@ test('perguntas reais caem na opção certa', () => {
         'como marco uma intenção para minha avó falecida?': '1',
         'rezem pela minha família por favor': '2',
         'como faço pra batizar meu filho': '3',
-        'preciso de uma certidão': '3',
+        'preciso de uma certidão': 'certidao',
         'quanto custa o casamento': '4',
         'qual a chave pix?': '5',
         'onde fica a igreja?': '6',
