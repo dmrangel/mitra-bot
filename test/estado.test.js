@@ -3,27 +3,45 @@ const assert = require('node:assert/strict');
 
 const { config } = require('../config');
 const estado = require('../lib/estado');
+const { MODO } = estado;
 
-test('marcarEstado/estadoExpirado: recém-marcado não expirou, mas expira com limite negativo', () => {
-    estado.marcarEstado('chatA');
-    assert.equal(estado.estadoExpirado('chatA', 999999999), false);
-    assert.equal(estado.estadoExpirado('chatA', -1), true);
+test.afterEach(() => {
+    estado.conversas.clear();
+    estado.ultimoPedido.clear();
+    config.expiraOracaoMs = 30 * 60 * 1000;
+    config.expiraHumanoMs = 6 * 60 * 60 * 1000;
 });
 
-test('estadoExpirado: quem nunca foi marcado é tratado como expirado', () => {
-    assert.equal(estado.estadoExpirado('nunca-marcado', 999999999), true);
+test('quem nunca escreveu está no menu', () => {
+    assert.equal(estado.modoDe('ninguem'), MODO.MENU);
 });
 
-test('limparEstado remove de emPedidoOracao, emAtendimentoHumano e zera a marcação', () => {
-    estado.emPedidoOracao.add('chatB');
-    estado.emAtendimentoHumano.add('chatB');
-    estado.marcarEstado('chatB');
+test('definirModo troca o modo, e voltar ao menu tira a conversa do mapa', () => {
+    estado.definirModo('chatA', MODO.ORACAO);
+    assert.equal(estado.modoDe('chatA'), MODO.ORACAO);
+    estado.definirModo('chatA', MODO.ATENDENTE);
+    assert.equal(estado.modoDe('chatA'), MODO.ATENDENTE);
+    estado.definirModo('chatA', MODO.MENU);
+    assert.equal(estado.modoDe('chatA'), MODO.MENU);
+    assert.equal(estado.conversas.has('chatA'), false);
+});
 
-    estado.limparEstado('chatB');
+test('oração e atendente expiram cada um no seu prazo e voltam ao menu', () => {
+    config.expiraOracaoMs = -1;
+    estado.definirModo('chatO', MODO.ORACAO);
+    assert.equal(estado.modoDe('chatO'), MODO.MENU);
 
-    assert.equal(estado.emPedidoOracao.has('chatB'), false);
-    assert.equal(estado.emAtendimentoHumano.has('chatB'), false);
-    assert.equal(estado.estadoExpirado('chatB', 999999999), true);
+    config.expiraHumanoMs = -1;
+    estado.definirModo('chatH', MODO.ATENDENTE);
+    assert.equal(estado.modoDe('chatH'), MODO.MENU);
+});
+
+test('pausado (!manual) não expira sozinho', () => {
+    config.expiraOracaoMs = -1;
+    config.expiraHumanoMs = -1;
+    estado.definirModo('chatP', MODO.PAUSADO);
+    estado.conversas.get('chatP').desde = 0; // "há 56 anos"
+    assert.equal(estado.modoDe('chatP'), MODO.PAUSADO);
 });
 
 test('limparMapasAuxiliares remove ultimoPedido velho e mantém o recente', () => {
@@ -41,31 +59,15 @@ test('limparMapasAuxiliares remove ultimoPedido velho e mantém o recente', () =
     config.intervaloPedidoMs = original;
 });
 
-test('limparMapasAuxiliares não apaga quem ainda está "preso" num estado especial', () => {
-    const original = config.expiraHumanoMs;
-    config.expiraHumanoMs = -5; // qualquer tempo decorrido já conta como expirado
-
-    estado.emAtendimentoHumano.add('chatPreso');
-    estado.marcarEstado('chatPreso');
+test('limparMapasAuxiliares apaga conversas vencidas e mantém as válidas e as pausadas', () => {
+    estado.definirModo('valida', MODO.ORACAO);
+    estado.definirModo('pausada', MODO.PAUSADO);
+    estado.definirModo('vencida', MODO.ATENDENTE);
+    estado.conversas.get('vencida').desde = 0;
 
     estado.limparMapasAuxiliares();
 
-    // Preso == continua marcado mesmo com o prazo estourado, exatamente para
-    // não perder o controle de quem está em atendimento humano.
-    assert.equal(estado.estadoExpirado('chatPreso', 999999999), false);
-
-    estado.emAtendimentoHumano.delete('chatPreso');
-    config.expiraHumanoMs = original;
-});
-
-test('limparMapasAuxiliares apaga quem não está mais preso e já expirou', () => {
-    const original = config.expiraHumanoMs;
-    config.expiraHumanoMs = -5;
-
-    estado.marcarEstado('chatLivre');
-    estado.limparMapasAuxiliares();
-
-    assert.equal(estado.estadoExpirado('chatLivre', 999999999), true);
-
-    config.expiraHumanoMs = original;
+    assert.equal(estado.conversas.has('valida'), true);
+    assert.equal(estado.conversas.has('pausada'), true);
+    assert.equal(estado.conversas.has('vencida'), false);
 });

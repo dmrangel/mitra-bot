@@ -18,7 +18,7 @@ if (config.modoTeste) {
 }
 
 const cliente = require('./lib/cliente');
-const { AVISO_LIGACAO } = require('./lib/textos');
+const { MSG } = require('./conteudo');
 const { enviar } = require('./lib/envio');
 const { adaptarMensagem } = require('./lib/mensagem');
 const { limparMapasAuxiliares } = require('./lib/estado');
@@ -68,7 +68,7 @@ function aoLigar(chamadas) {
         if (!testadores.podeResponder(c.from, c.callerPn)) continue;
         cliente.rejeitarLigacao(c.id, c.from)
             .catch(e => erro('rejeitar chamada', e))
-            .then(() => enviar(c.callerPn || c.from, AVISO_LIGACAO));
+            .then(() => enviar(c.callerPn || c.from, MSG.avisoLigacao));
     }
 }
 

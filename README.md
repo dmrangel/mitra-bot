@@ -158,17 +158,24 @@ Observações:
 
 | Arquivo | Conteúdo |
 |---|---|
-| `menu.js` | Textos das respostas e palavras-chave (informação pública) |
+| `conteudo.js` | **Tudo o que o bot escreve**: dados do Santuário (telefones, horário da secretaria, PIX), opções do menu com palavras-chave e respostas, e as demais mensagens (informação pública) |
 | `.env` | Números, grupos e tempos (**privado**) |
 | `config.js` | Leitura e validação do `.env` |
 | `lib/fluxoConversa.js` | Lógica do atendimento |
+| `lib/estado.js` | Em que modo está cada conversa: menu, oração, atendente, pausado |
+| `lib/menuMatcher.js` | Reconhece número da opção, palavras-chave, despedidas e "ok" |
+| `lib/horario.js` | Secretaria aberta agora? (fuso de Brasília; feriados não contam) |
 | `lib/cliente.js` | Conexão com o WhatsApp (Baileys), reconexão, pareamento |
 | `lib/mensagem.js` | Converte a mensagem do Baileys para o formato usado pelo fluxo |
 | `lib/testadores.js` | Modo teste: quem enviou `/teste` (salvo em `testadores.json`) |
 | `lib/envio.js` | Envio com "digitando" e limite por minuto |
 | `deploy.sh`, `.github/workflows/deploy.yml` | Deploy automático na VM |
 
-Para mudar um horário ou um valor, mexa **só no `menu.js`**.
+Para mudar um texto, um horário ou um valor, mexa **só no `conteudo.js`**. O
+menu principal é montado a partir da lista de opções, e telefones e horário da
+secretaria são definidos uma vez em `DADOS`. Rode `npm test`: há testes que
+avisam se um valor sumiu dos textos ou se a mesma palavra-chave ficou em duas
+opções.
 
 ## 8. Problemas comuns
 

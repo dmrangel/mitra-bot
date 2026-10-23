@@ -67,10 +67,6 @@ const config = {
     atrasoRespostaMs: inteiroOuZero(process.env.ATRASO_RESPOSTA_MS, 1200),
     limiteEnviosMinuto: inteiro(process.env.LIMITE_ENVIOS_MINUTO, 30),
 
-    // Telefones públicos da secretaria (os mesmos que já aparecem no menu)
-    telefones: lista(process.env.TELEFONES_SECRETARIA).length
-        ? lista(process.env.TELEFONES_SECRETARIA)
-        : ['(21) 2253-7564', '(21) 97908-2767'],
 
     arquivoPedidos: path.join(__dirname, 'pedidos.json'),
     arquivoTestadores: path.join(__dirname, 'testadores.json'),
