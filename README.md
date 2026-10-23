@@ -122,10 +122,29 @@ No `.env`:
 
 ```
 MODO_TESTE=true
-NUMERO_TESTE=5521999999999@c.us
+NUMERO_TESTE=5521999999999@c.us   # opcional
 ```
 
-Assim o bot só responde a esse número.
+Com o modo teste ligado o bot **fica calado para todo mundo**, menos para:
+
+- o `NUMERO_TESTE` (se você preencher), e
+- quem enviar **`/teste`** no privado. A pessoa recebe a confirmação e o menu, e a
+  partir daí é atendida normalmente. Para sair: **`/teste sair`**.
+
+A inscrição de quem enviou `/teste` vale `TESTE_VALIDADE_HORAS` (padrão: 24) e fica
+em `testadores.json`, então um reinício ou um deploy não tira ninguém do teste.
+
+No modo teste, **ligações** de quem não está testando também são ignoradas (o bot
+não rejeita a chamada nem manda o aviso). Isso permite rodar o bot num número
+pessoal sem atrapalhar o dono do aparelho.
+
+Observações:
+
+- O `/teste` só vale no **privado** (grupos e quem está na `BLACKLIST` são ignorados).
+- Mensagens que o **próprio aparelho** envia não ativam o bot; para testar, escreva
+  de **outro número**.
+- Para abrir ao público, volte `MODO_TESTE=false` e reinicie com
+  `pm2 restart mitra-bot --update-env`.
 
 ## 7. Onde mexer em cada coisa
 
@@ -137,6 +156,7 @@ Assim o bot só responde a esse número.
 | `lib/fluxoConversa.js` | Lógica do atendimento |
 | `lib/cliente.js` | Conexão com o WhatsApp (Baileys), reconexão, pareamento |
 | `lib/mensagem.js` | Converte a mensagem do Baileys para o formato usado pelo fluxo |
+| `lib/testadores.js` | Modo teste: quem enviou `/teste` (salvo em `testadores.json`) |
 | `lib/envio.js` | Envio com "digitando" e limite por minuto |
 | `deploy.sh`, `.github/workflows/deploy.yml` | Deploy automático na VM |
 
@@ -160,7 +180,8 @@ O WhatsApp mudou algo no protocolo. Atualize a biblioteca:
 push na `main`: o deploy é automático.
 
 **O bot não responde ninguém**
-Confira se `MODO_TESTE` está `false`, e se o número não caiu na `BLACKLIST`.
+Confira se `MODO_TESTE` está `false` (com `true`, só responde a quem enviou
+`/teste` ou ao `NUMERO_TESTE`), e se o número não caiu na `BLACKLIST`.
 
 **Pedi para o bot parar numa conversa e ele não volta**
 Envie `!auto` naquela conversa.

@@ -104,8 +104,9 @@ pm2 ls          # sweetbot, chrollo e mitra-bot "online"
 free -h
 ```
 
-Teste mandando "oi" de outro celular. Para testar sem incomodar os fiéis,
-use `MODO_TESTE=true` + `NUMERO_TESTE` antes do pareamento.
+Teste mandando "oi" de outro celular. Para testar sem incomodar os fiéis, use
+`MODO_TESTE=true` antes do pareamento: o bot só atende quem enviar `/teste` (e o
+`NUMERO_TESTE`, se houver). Veja o README, seção "Testando sem incomodar os fiéis".
 
 ## 5. Chave de deploy do Actions
 

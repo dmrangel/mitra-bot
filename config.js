@@ -40,9 +40,12 @@ const config = {
     numerosVerificacao: lista(process.env.NUMEROS_VERIFICACAO),
     blacklist: lista(process.env.BLACKLIST),
 
-    // Modo teste: só responde ao NUMERO_TESTE
+    // Modo teste: o bot só responde ao NUMERO_TESTE (opcional) e a quem enviar
+    // "/teste" no privado (lib/testadores.js).
     modoTeste: process.env.MODO_TESTE === 'true',
     numeroTeste: texto(process.env.NUMERO_TESTE),
+    // Quanto tempo vale a inscrição de quem enviou "/teste".
+    testeValidadeMs: inteiro(process.env.TESTE_VALIDADE_HORAS, 24) * 60 * 60 * 1000,
 
     // Tempos
     tempoAviso: inteiro(process.env.TEMPO_AVISO_MIN, 5) * 60 * 1000,
@@ -64,6 +67,7 @@ const config = {
         : ['(21) 2253-7564', '(21) 97908-2767'],
 
     arquivoPedidos: path.join(__dirname, 'pedidos.json'),
+    arquivoTestadores: path.join(__dirname, 'testadores.json'),
     // A sessão do WhatsApp. Esta pasta É a conta: fora do Git, chmod 700.
     pastaAuth: path.join(__dirname, 'auth')
 };
@@ -97,7 +101,7 @@ function validar() {
         avisos.push('GRUPOS_NOTIFICACAO_HUMANO está vazio: os avisos de atendimento humano vão para NUMEROS_VERIFICACAO.');
     }
     if (config.modoTeste && !config.numeroTeste) {
-        erros.push('MODO_TESTE=true exige NUMERO_TESTE preenchido, senão o bot ignora todo mundo.');
+        avisos.push('MODO_TESTE=true sem NUMERO_TESTE: o bot só vai atender quem enviar /teste.');
     }
     if (config.numeroBot && !/^\d{10,15}$/.test(config.numeroBot)) {
         erros.push(`NUMERO_BOT inválido ("${config.numeroBot}"): use só dígitos com DDI e DDD, ex.: 5521999999999.`);
