@@ -18,10 +18,11 @@ test('dia útil: aberta das 6h30 às 18h30, fechada fora disso', () => {
     assert.equal(secretariaAberta(em('2026-10-23T21:30:00Z')), false, 'sexta 18h30');
 });
 
-test('sábado só de manhã; domingo das 7h30 ao meio-dia', () => {
+test('sábado das 8h ao meio-dia; domingo das 6h30 ao meio-dia', () => {
     assert.equal(secretariaAberta(em('2026-10-24T11:00:00Z')), true, 'sábado 8h');
     assert.equal(secretariaAberta(em('2026-10-24T15:00:00Z')), false, 'sábado 12h');
-    assert.equal(secretariaAberta(em('2026-10-25T10:29:00Z')), false, 'domingo 7h29');
-    assert.equal(secretariaAberta(em('2026-10-25T10:30:00Z')), true, 'domingo 7h30');
+    assert.equal(secretariaAberta(em('2026-10-25T09:29:00Z')), false, 'domingo 6h29');
+    assert.equal(secretariaAberta(em('2026-10-25T09:30:00Z')), true, 'domingo 6h30');
+    assert.equal(secretariaAberta(em('2026-10-25T14:59:00Z')), true, 'domingo 11h59');
     assert.equal(secretariaAberta(em('2026-10-25T18:00:00Z')), false, 'domingo 15h');
 });

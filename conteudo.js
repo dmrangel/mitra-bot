@@ -24,7 +24,7 @@ const DADOS = {
     horarioSecretaria: [
         { rotulo: 'Segunda a sexta', dias: [1, 2, 3, 4, 5], abre: '06:30', fecha: '18:30' },
         { rotulo: 'Sábado', dias: [6], abre: '08:00', fecha: '12:00' },
-        { rotulo: 'Domingo', dias: [0], abre: '07:30', fecha: '12:00' }
+        { rotulo: 'Domingo', dias: [0], abre: '06:30', fecha: '12:00' }
     ]
 };
 
@@ -156,7 +156,7 @@ ${TELEFONES}`
 *PIX:* ${DADOS.pix}
 
 *Transferência*
-Bradesco · Agência 0436 · C/P 6682220-6
+Bradesco · Agência 0436 · Conta poupança 6682220-6
 Mitra Arquiepiscopal
 CNPJ 33.593.575/0222-74`
     },
