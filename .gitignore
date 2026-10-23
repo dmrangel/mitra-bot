@@ -5,6 +5,7 @@ node_modules/
 .claude
 todo.txt
 pedidos.json
+testadores.json
 logs/
 npm-debug.log*
 # Sessão do WhatsApp (Baileys). ESTA PASTA É A CONTA: nunca versionar.

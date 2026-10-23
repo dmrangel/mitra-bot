@@ -58,15 +58,31 @@ test('sem GRUPOS_NOTIFICACAO_HUMANO, validar() só avisa (não bloqueia)', () =>
     });
 });
 
-test('MODO_TESTE ligado sem NUMERO_TESTE bloqueia', () => {
+test('MODO_TESTE ligado sem NUMERO_TESTE só avisa: quem enviar /teste continua podendo testar', () => {
     comConfigTemporaria({
         numerosVerificacao: ['5521999999999@c.us'],
         gruposOracao: ['grupo@g.us'],
+        gruposNotificacaoHumano: ['grupo@g.us'],
         modoTeste: true,
         numeroTeste: ''
     }, () => {
-        const { erros } = validar();
-        assert.ok(erros.some(e => e.includes('MODO_TESTE')));
+        const { erros, avisos } = validar();
+        assert.deepEqual(erros, []);
+        assert.ok(avisos.some(a => a.includes('MODO_TESTE') && a.includes('/teste')));
+    });
+});
+
+test('MODO_TESTE ligado com NUMERO_TESTE não gera aviso nem erro', () => {
+    comConfigTemporaria({
+        numerosVerificacao: ['5521999999999@c.us'],
+        gruposOracao: ['grupo@g.us'],
+        gruposNotificacaoHumano: ['grupo@g.us'],
+        modoTeste: true,
+        numeroTeste: '128277788291105@lid'
+    }, () => {
+        const { erros, avisos } = validar();
+        assert.deepEqual(erros, []);
+        assert.deepEqual(avisos, []);
     });
 });
 

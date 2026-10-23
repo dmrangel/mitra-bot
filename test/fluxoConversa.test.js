@@ -10,6 +10,9 @@ const { config } = require('../config');
 // os testes na VM apagaria a fila de pedidos aguardando aprovação.
 config.arquivoPedidos = path.join(os.tmpdir(), `mitra-bot-teste-fluxo-${process.pid}.json`);
 test.after(() => require('fs').rmSync(config.arquivoPedidos, { force: true }));
+// Idem para os testadores do modo teste (testadores.json).
+config.arquivoTestadores = path.join(os.tmpdir(), `mitra-bot-teste-fluxo-testadores-${process.pid}.json`);
+test.after(() => require('fs').rmSync(config.arquivoTestadores, { force: true }));
 const { startupTime } = require('../lib/startup');
 const { MENU_PRINCIPAL } = require('../lib/textos');
 
@@ -28,6 +31,7 @@ envio.enviarParaTodos = async (destinos, texto) => {
 const estado = require('../lib/estado');
 const { limparTimers } = require('../lib/timers');
 const pedidos = require('../lib/pedidos');
+const testadores = require('../lib/testadores');
 const { tratarMensagem } = require('../lib/fluxoConversa');
 
 let contador = 0;
@@ -62,6 +66,8 @@ test.beforeEach(() => {
     config.expiraHumanoMs = 6 * 60 * 60 * 1000;
     config.expiraOracaoMs = 30 * 60 * 1000;
     config.intervaloPedidoMs = 30 * 1000;
+    config.testeValidadeMs = 24 * 60 * 60 * 1000;
+    testadores.testadores.clear();
 });
 
 // Roda sempre, mesmo se o teste falhar no meio: sem isso, um assert que
@@ -76,6 +82,7 @@ test.afterEach(() => {
     estado.cooldown.clear();
     estado.ultimoPedido.clear();
     pedidos.pedidosPendentes.clear();
+    testadores.testadores.clear();
 });
 
 test('"atendimento humano" cai na opção 8, não na 6 (regressão documentada)', async () => {
@@ -229,4 +236,109 @@ test('modo teste reconhece o número de teste mesmo quando a conversa chega como
     });
     await tratarMensagem(msg);
     assert.ok(enviados.some(e => e.destino === msg.from));
+});
+
+// --- /teste (modo teste com inscrição) ---------------------------------------
+
+test('modo teste: quem envia /teste passa a ser atendido; antes disso, e os outros contatos, ficam sem resposta', async () => {
+    config.modoTeste = true;
+    const testador = novoChatId();
+    const outro = novoChatId();
+
+    await tratarMensagem(criarMsg({ from: testador, body: 'oi' }));
+    assert.equal(enviados.length, 0, 'sem /teste o bot fica calado');
+
+    await tratarMensagem(criarMsg({ from: testador, body: '/teste' }));
+    assert.ok(enviados.some(e => e.destino === testador && /Modo de teste ativado/.test(e.texto)), 'deveria confirmar a inscrição');
+    assert.ok(enviados.some(e => e.destino === testador && e.texto === MENU_PRINCIPAL), 'deveria mandar o menu em seguida');
+
+    enviados.length = 0;
+    await tratarMensagem(criarMsg({ from: testador, body: '1', timestamp: startupTime + 11 }));
+    assert.ok(enviados.some(e => e.destino === testador), 'depois do /teste ele é atendido normalmente');
+
+    await tratarMensagem(criarMsg({ from: outro, body: 'oi' }));
+    assert.equal(enviados.some(e => e.destino === outro), false, 'outro contato continua ignorado');
+});
+
+test('modo teste: "/teste sair" tira da lista e volta o silêncio; de quem não estava inscrito não gera resposta', async () => {
+    config.modoTeste = true;
+    const chatId = novoChatId();
+
+    await tratarMensagem(criarMsg({ from: chatId, body: '/teste' }));
+    enviados.length = 0;
+
+    await tratarMensagem(criarMsg({ from: chatId, body: '/teste sair' }));
+    assert.ok(enviados.some(e => e.destino === chatId && /desativado/.test(e.texto)));
+
+    enviados.length = 0;
+    await tratarMensagem(criarMsg({ from: chatId, body: 'oi' }));
+    assert.equal(enviados.length, 0, 'depois de sair, silêncio');
+
+    await tratarMensagem(criarMsg({ from: chatId, body: '/teste sair' }));
+    assert.equal(enviados.length, 0, 'sair sem estar inscrito não responde nada');
+});
+
+test('modo teste: a inscrição vale para o mesmo contato quando ele chega como número e depois como @lid', async () => {
+    config.modoTeste = true;
+    const numero = '5521912345678@s.whatsapp.net';
+    const lid = '128277788291105@lid';
+
+    await tratarMensagem(criarMsg({ from: numero, aliases: [numero], body: '/teste' }));
+    enviados.length = 0;
+
+    await tratarMensagem(criarMsg({ from: lid, aliases: [lid, numero], body: 'oi', timestamp: startupTime + 11 }));
+    assert.ok(enviados.some(e => e.destino === lid), 'deveria reconhecer o testador pelo número alternativo');
+});
+
+test('modo teste: a inscrição expira e o bot volta a ficar calado', async () => {
+    config.modoTeste = true;
+    config.testeValidadeMs = -1; // já nasce vencida
+    const chatId = novoChatId();
+
+    await tratarMensagem(criarMsg({ from: chatId, body: '/teste' }));
+    enviados.length = 0;
+
+    await tratarMensagem(criarMsg({ from: chatId, body: 'oi', timestamp: startupTime + 11 }));
+    assert.equal(enviados.length, 0);
+});
+
+test('modo teste: /teste não funciona em grupo nem para quem está na blacklist', async () => {
+    config.modoTeste = true;
+
+    await tratarMensagem(criarMsg({ from: 'algumgrupo@g.us', body: '/teste' }));
+    assert.equal(enviados.length, 0);
+    assert.equal(testadores.testadores.size, 0);
+
+    const bloqueado = novoChatId();
+    config.blacklist = [bloqueado];
+    await tratarMensagem(criarMsg({ from: bloqueado, body: '/teste' }));
+    assert.equal(enviados.length, 0);
+    assert.equal(testadores.testadores.size, 0);
+});
+
+test('modo teste: o NUMERO_TESTE continua sendo atendido sem precisar de /teste, e "/teste sair" não o bloqueia', async () => {
+    config.modoTeste = true;
+    config.numeroTeste = '5521912345678';
+    const msg = criarMsg({ from: '5521912345678@s.whatsapp.net', body: 'oi' });
+
+    await tratarMensagem(msg);
+    assert.ok(enviados.some(e => e.destino === msg.from), 'atendido sem /teste');
+
+    enviados.length = 0;
+    await tratarMensagem(criarMsg({ from: msg.from, body: '/teste sair', timestamp: startupTime + 11 }));
+    assert.equal(enviados.length, 0, '"/teste sair" não responde nada para quem não estava inscrito');
+
+    estado.cooldown.clear(); // o menu tem cooldown entre respostas; aqui o que importa é o filtro do modo teste
+    await tratarMensagem(criarMsg({ from: msg.from, body: 'oi', timestamp: startupTime + 12 }));
+    assert.ok(enviados.some(e => e.destino === msg.from), 'segue atendido');
+});
+
+test('fora do modo teste, "/teste" é um texto qualquer: recebe o menu e não inscreve ninguém', async () => {
+    config.modoTeste = false;
+    const chatId = novoChatId();
+
+    await tratarMensagem(criarMsg({ from: chatId, body: '/teste' }));
+    assert.equal(enviados.some(e => /Modo de teste/.test(e.texto)), false);
+    assert.ok(enviados.some(e => e.destino === chatId && e.texto === MENU_PRINCIPAL));
+    assert.equal(testadores.testadores.size, 0);
 });

@@ -19,12 +19,15 @@ const { enviar } = require('./lib/envio');
 const { adaptarMensagem } = require('./lib/mensagem');
 const { limparMapasAuxiliares } = require('./lib/estado');
 const { carregarPedidos, salvarPedidos, limparPedidosExpirados } = require('./lib/pedidos');
+const testadores = require('./lib/testadores');
 const { tratarMensagem, tratarComandoDoAparelho } = require('./lib/fluxoConversa');
 
 carregarPedidos();
+testadores.carregar();
 setInterval(() => {
     limparPedidosExpirados();
     limparMapasAuxiliares();
+    testadores.limparExpirados();
 }, 60 * 60 * 1000).unref();
 
 // ---------------------------------------------------------------------------
@@ -55,6 +58,10 @@ function aoReceber(mensagens, tipo) {
 function aoLigar(chamadas) {
     for (const c of chamadas) {
         if (c.status !== 'offer' || c.isGroup) continue;
+        // No modo teste, as ligações de quem não está testando passam direto:
+        // o bot não rejeita a chamada nem manda o aviso (importante quando o bot
+        // roda num número que também é usado por uma pessoa).
+        if (!testadores.podeResponder(c.from, c.callerPn)) continue;
         cliente.rejeitarLigacao(c.id, c.from)
             .catch(e => erro('rejeitar chamada', e))
             .then(() => enviar(c.callerPn || c.from, AVISO_LIGACAO));
