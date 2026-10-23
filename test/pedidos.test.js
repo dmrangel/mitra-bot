@@ -23,6 +23,7 @@ envio.enviarParaTodos = async (destinos, texto) => {
 };
 
 const pedidos = require('../lib/pedidos');
+const { MSG } = require('../conteudo');
 
 test.beforeEach(() => {
     pedidos.pedidosPendentes.clear();
@@ -37,15 +38,15 @@ test.after(() => {
 });
 
 test('listarPedidos informa quando não há pendentes', () => {
-    assert.equal(pedidos.listarPedidos(), 'Nenhum pedido pendente no momento.');
+    assert.equal(pedidos.listarPedidos(), MSG.equipe.semPedidos);
 });
 
 test('listarPedidos lista e trunca pedidos longos', () => {
-    pedidos.pedidosPendentes.set('ID1', { nome: 'Maria', texto: 'x'.repeat(60), de: 'a@c.us', criadoEm: Date.now() });
+    pedidos.pedidosPendentes.set('ID1', { nome: 'Maria', texto: 'x'.repeat(80), de: 'a@c.us', criadoEm: Date.now() });
     const lista = pedidos.listarPedidos();
-    assert.match(lista, /ID: ID1/);
-    assert.match(lista, /De: Maria/);
-    assert.match(lista, /x{40}\.\.\./);
+    assert.match(lista, /\*ID1\* · Maria/);
+    assert.match(lista, /x{60}\.\.\./);
+    assert.doesNotMatch(lista, /x{61}/);
 });
 
 test('gerarIdPedido nunca repete um id já em uso', () => {
@@ -116,7 +117,7 @@ test('aprovarPedido publica nos grupos de oração e remove da fila', async () =
     const publicados = enviados.filter(e => e.destino.endsWith('@g.us'));
     assert.equal(publicados.length, 2);
     const confirmacao = enviados.find(e => e.destino === 'admin@c.us');
-    assert.match(confirmacao.texto, /aprovado e encaminhado/);
+    assert.equal(confirmacao.texto, MSG.equipe.aprovado(false));
 });
 
 test('aprovarPedido mantém o pedido pendente se não conseguir publicar em nenhum grupo', async () => {
@@ -140,7 +141,7 @@ test('modo teste: aprovarPedido publica SÓ no grupo de teste e o grupo real nã
     assert.deepEqual(enviados.filter(e => e.destino.endsWith('@g.us')).map(e => e.destino), ['grupo-teste@g.us']);
     assert.equal(enviados.some(e => e.destino === 'grupo-real@g.us'), false, 'o grupo real não pode receber pedido em modo teste');
     const confirmacao = enviados.find(e => e.destino === 'admin@c.us');
-    assert.match(confirmacao.texto, /grupo de TESTE/);
+    assert.equal(confirmacao.texto, MSG.equipe.aprovado(true));
 });
 
 test('modo teste sem grupo de teste: o pedido fica pendente e nada vai para o grupo real', async () => {
