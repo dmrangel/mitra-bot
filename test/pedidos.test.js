@@ -27,6 +27,8 @@ const pedidos = require('../lib/pedidos');
 test.beforeEach(() => {
     pedidos.pedidosPendentes.clear();
     enviados.length = 0;
+    config.modoTeste = false;
+    config.gruposOracaoTeste = [];
     if (fs.existsSync(arquivoTemporario)) fs.unlinkSync(arquivoTemporario);
 });
 
@@ -124,4 +126,44 @@ test('aprovarPedido mantém o pedido pendente se não conseguir publicar em nenh
     await pedidos.aprovarPedido('OK2', 'admin@c.us');
 
     assert.equal(pedidos.pedidosPendentes.has('OK2'), true);
+});
+
+test('modo teste: aprovarPedido publica SÓ no grupo de teste e o grupo real não recebe nada', async () => {
+    config.modoTeste = true;
+    config.gruposOracao = ['grupo-real@g.us'];
+    config.gruposOracaoTeste = ['grupo-teste@g.us'];
+    pedidos.pedidosPendentes.set('T1', { nome: 'Ana', texto: 'Por cura', de: 'e@c.us', criadoEm: Date.now() });
+
+    await pedidos.aprovarPedido('T1', 'admin@c.us');
+
+    assert.equal(pedidos.pedidosPendentes.has('T1'), false);
+    assert.deepEqual(enviados.filter(e => e.destino.endsWith('@g.us')).map(e => e.destino), ['grupo-teste@g.us']);
+    assert.equal(enviados.some(e => e.destino === 'grupo-real@g.us'), false, 'o grupo real não pode receber pedido em modo teste');
+    const confirmacao = enviados.find(e => e.destino === 'admin@c.us');
+    assert.match(confirmacao.texto, /grupo de TESTE/);
+});
+
+test('modo teste sem grupo de teste: o pedido fica pendente e nada vai para o grupo real', async () => {
+    config.modoTeste = true;
+    config.gruposOracao = ['grupo-real@g.us'];
+    config.gruposOracaoTeste = [];
+    pedidos.pedidosPendentes.set('T2', { nome: 'Ana', texto: 'Por cura', de: 'e@c.us', criadoEm: Date.now() });
+
+    await pedidos.aprovarPedido('T2', 'admin@c.us');
+
+    assert.equal(pedidos.pedidosPendentes.has('T2'), true);
+    assert.equal(enviados.some(e => e.destino === 'grupo-real@g.us'), false);
+});
+
+test('fora do modo teste, aprovarPedido usa o grupo real e ignora o de teste', async () => {
+    config.modoTeste = false;
+    config.gruposOracao = ['grupo-real@g.us'];
+    config.gruposOracaoTeste = ['grupo-teste@g.us'];
+    pedidos.pedidosPendentes.set('T3', { nome: 'Ana', texto: 'Por cura', de: 'e@c.us', criadoEm: Date.now() });
+
+    await pedidos.aprovarPedido('T3', 'admin@c.us');
+
+    assert.deepEqual(enviados.filter(e => e.destino.endsWith('@g.us')).map(e => e.destino), ['grupo-real@g.us']);
+    const confirmacao = enviados.find(e => e.destino === 'admin@c.us');
+    assert.equal(/TESTE/.test(confirmacao.texto), false);
 });

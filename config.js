@@ -3,6 +3,8 @@ require('dotenv').config({ quiet: true });
 const fs = require('fs');
 const path = require('path');
 
+const { normalizarJid } = require('./lib/jids');
+
 function lista(valor) {
     return String(valor || '')
         .split(',')
@@ -36,6 +38,10 @@ const config = {
 
     // Destinos (privados - nunca versionar)
     gruposOracao: lista(process.env.GRUPOS_ORACAO),
+    // Grupo(s) de oração usados SÓ no modo teste: com MODO_TESTE=true os pedidos
+    // aprovados vão para cá e nunca para GRUPOS_ORACAO (o grupo real). Virar a
+    // flag para false troca o destino sozinho (ver gruposDeOracao()).
+    gruposOracaoTeste: lista(process.env.GRUPOS_ORACAO_TESTE),
     gruposNotificacaoHumano: lista(process.env.GRUPOS_NOTIFICACAO_HUMANO),
     numerosVerificacao: lista(process.env.NUMEROS_VERIFICACAO),
     blacklist: lista(process.env.BLACKLIST),
@@ -103,6 +109,12 @@ function validar() {
     if (config.modoTeste && !config.numeroTeste) {
         avisos.push('MODO_TESTE=true sem NUMERO_TESTE: o bot só vai atender quem enviar /teste.');
     }
+    if (config.modoTeste && config.gruposOracaoTeste.length === 0) {
+        erros.push('MODO_TESTE=true exige GRUPOS_ORACAO_TESTE: no modo teste os pedidos aprovados nunca vão para GRUPOS_ORACAO (o grupo real).');
+    }
+    if (config.modoTeste && config.gruposOracaoTeste.some(t => config.gruposOracao.some(r => normalizarJid(r) === normalizarJid(t)))) {
+        avisos.push('GRUPOS_ORACAO_TESTE e GRUPOS_ORACAO apontam para o mesmo grupo: o modo teste não está separado da produção.');
+    }
     if (config.numeroBot && !/^\d{10,15}$/.test(config.numeroBot)) {
         erros.push(`NUMERO_BOT inválido ("${config.numeroBot}"): use só dígitos com DDI e DDD, ex.: 5521999999999.`);
     }
@@ -112,6 +124,7 @@ function validar() {
 
     const campos = {
         GRUPOS_ORACAO: config.gruposOracao,
+        GRUPOS_ORACAO_TESTE: config.gruposOracaoTeste,
         GRUPOS_NOTIFICACAO_HUMANO: config.gruposNotificacaoHumano,
         NUMEROS_VERIFICACAO: config.numerosVerificacao,
         BLACKLIST: config.blacklist
@@ -130,4 +143,13 @@ function validar() {
     return { erros, avisos };
 }
 
-module.exports = { config, validar, jaPareado };
+/**
+ * Grupos que recebem os pedidos de oração aprovados: os de teste no modo teste,
+ * os reais fora dele. Se estiver em modo teste e não houver grupo de teste, a
+ * lista é vazia: o pedido fica pendente em vez de ir parar no grupo real.
+ */
+function gruposDeOracao() {
+    return config.modoTeste ? config.gruposOracaoTeste : config.gruposOracao;
+}
+
+module.exports = { config, validar, jaPareado, gruposDeOracao };

@@ -13,6 +13,10 @@ if (erros.length > 0) {
     process.exit(1);
 }
 
+if (config.modoTeste) {
+    log('MODO TESTE ligado: só atende quem enviou /teste; pedidos de oração aprovados vão para GRUPOS_ORACAO_TESTE.');
+}
+
 const cliente = require('./lib/cliente');
 const { AVISO_LIGACAO } = require('./lib/textos');
 const { enviar } = require('./lib/envio');
