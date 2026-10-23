@@ -67,6 +67,7 @@ test.beforeEach(() => {
     config.expiraOracaoMs = 30 * 60 * 1000;
     config.intervaloPedidoMs = 30 * 1000;
     config.testeValidadeMs = 24 * 60 * 60 * 1000;
+    config.gruposOracaoTeste = [];
     testadores.testadores.clear();
 });
 
@@ -331,6 +332,20 @@ test('modo teste: o NUMERO_TESTE continua sendo atendido sem precisar de /teste,
     estado.cooldown.clear(); // o menu tem cooldown entre respostas; aqui o que importa é o filtro do modo teste
     await tratarMensagem(criarMsg({ from: msg.from, body: 'oi', timestamp: startupTime + 12 }));
     assert.ok(enviados.some(e => e.destino === msg.from), 'segue atendido');
+});
+
+test('modo teste: um !aprovar de quem verifica publica no grupo de teste, nunca no grupo real', async () => {
+    config.modoTeste = true;
+    config.gruposOracao = ['grupo-real@g.us'];
+    config.gruposOracaoTeste = ['grupo-teste@g.us'];
+    pedidos.pedidosPendentes.set('FLX1', { nome: 'Ana', texto: 'Por cura', de: '5521911111111@c.us', criadoEm: Date.now() });
+
+    // 5521999999999@c.us é o NUMEROS_VERIFICACAO deste arquivo de teste.
+    await tratarMensagem(criarMsg({ from: '5521999999999@c.us', body: '!aprovar flx1' }));
+
+    assert.equal(pedidos.pedidosPendentes.has('FLX1'), false);
+    assert.ok(enviados.some(e => e.destino === 'grupo-teste@g.us' && /NOVO PEDIDO DE ORAÇÃO/.test(e.texto)));
+    assert.equal(enviados.some(e => e.destino === 'grupo-real@g.us'), false);
 });
 
 test('fora do modo teste, "/teste" é um texto qualquer: recebe o menu e não inscreve ninguém', async () => {

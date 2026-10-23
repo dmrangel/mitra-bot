@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { config, validar } = require('../config');
+const { config, validar, gruposDeOracao } = require('../config');
 
 // Sem sessão salva, NUMERO_BOT é obrigatório. Os testes partem de um número
 // válido e só o tiram de propósito.
@@ -62,6 +62,7 @@ test('MODO_TESTE ligado sem NUMERO_TESTE só avisa: quem enviar /teste continua 
     comConfigTemporaria({
         numerosVerificacao: ['5521999999999@c.us'],
         gruposOracao: ['grupo@g.us'],
+        gruposOracaoTeste: ['grupo-teste@g.us'],
         gruposNotificacaoHumano: ['grupo@g.us'],
         modoTeste: true,
         numeroTeste: ''
@@ -76,6 +77,7 @@ test('MODO_TESTE ligado com NUMERO_TESTE não gera aviso nem erro', () => {
     comConfigTemporaria({
         numerosVerificacao: ['5521999999999@c.us'],
         gruposOracao: ['grupo@g.us'],
+        gruposOracaoTeste: ['grupo-teste@g.us'],
         gruposNotificacaoHumano: ['grupo@g.us'],
         modoTeste: true,
         numeroTeste: '128277788291105@lid'
@@ -83,6 +85,80 @@ test('MODO_TESTE ligado com NUMERO_TESTE não gera aviso nem erro', () => {
         const { erros, avisos } = validar();
         assert.deepEqual(erros, []);
         assert.deepEqual(avisos, []);
+    });
+});
+
+// --- grupo de oração por modo ------------------------------------------------
+
+test('MODO_TESTE ligado sem GRUPOS_ORACAO_TESTE bloqueia: o teste nunca pode cair no grupo real', () => {
+    comConfigTemporaria({
+        numerosVerificacao: ['5521999999999@c.us'],
+        gruposOracao: ['grupo-real@g.us'],
+        gruposOracaoTeste: [],
+        modoTeste: true,
+        numeroTeste: '128277788291105@lid'
+    }, () => {
+        const { erros } = validar();
+        assert.ok(erros.some(e => e.includes('GRUPOS_ORACAO_TESTE')));
+    });
+});
+
+test('com MODO_TESTE desligado, GRUPOS_ORACAO_TESTE não é exigido', () => {
+    comConfigTemporaria({
+        numerosVerificacao: ['5521999999999@c.us'],
+        gruposOracao: ['grupo-real@g.us'],
+        gruposOracaoTeste: [],
+        gruposNotificacaoHumano: ['grupo-real@g.us'],
+        modoTeste: false
+    }, () => {
+        const { erros, avisos } = validar();
+        assert.deepEqual(erros, []);
+        assert.deepEqual(avisos, []);
+    });
+});
+
+test('GRUPOS_ORACAO_TESTE igual a GRUPOS_ORACAO só avisa (o modo teste não estaria separado da produção)', () => {
+    comConfigTemporaria({
+        numerosVerificacao: ['5521999999999@c.us'],
+        gruposOracao: ['mesmo@g.us'],
+        gruposOracaoTeste: ['mesmo@g.us'],
+        gruposNotificacaoHumano: ['mesmo@g.us'],
+        modoTeste: true,
+        numeroTeste: '128277788291105@lid'
+    }, () => {
+        const { erros, avisos } = validar();
+        assert.deepEqual(erros, []);
+        assert.ok(avisos.some(a => a.includes('GRUPOS_ORACAO_TESTE') && a.includes('mesmo grupo')));
+    });
+});
+
+test('id fora do formato em GRUPOS_ORACAO_TESTE gera aviso', () => {
+    comConfigTemporaria({
+        numerosVerificacao: ['5521999999999@c.us'],
+        gruposOracao: ['grupo-real@g.us'],
+        gruposOracaoTeste: ['grupo-sem-sufixo'],
+        modoTeste: true,
+        numeroTeste: '128277788291105@lid'
+    }, () => {
+        const { avisos } = validar();
+        assert.ok(avisos.some(a => a.includes('GRUPOS_ORACAO_TESTE') && a.includes('grupo-sem-sufixo')));
+    });
+});
+
+test('gruposDeOracao: grupo de teste no modo teste, grupo real fora dele, nenhum se faltar o de teste', () => {
+    comConfigTemporaria({
+        gruposOracao: ['grupo-real@g.us'],
+        gruposOracaoTeste: ['grupo-teste@g.us'],
+        modoTeste: false
+    }, () => {
+        assert.deepEqual(gruposDeOracao(), ['grupo-real@g.us']);
+
+        config.modoTeste = true;
+        assert.deepEqual(gruposDeOracao(), ['grupo-teste@g.us']);
+
+        // Falha para o lado seguro: sem grupo de teste, não cai no real.
+        config.gruposOracaoTeste = [];
+        assert.deepEqual(gruposDeOracao(), []);
     });
 });
 

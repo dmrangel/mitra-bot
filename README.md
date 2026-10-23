@@ -44,7 +44,8 @@ Variáveis obrigatórias:
 
 | Variável | O que é |
 |---|---|
-| `GRUPOS_ORACAO` | Grupo(s) onde os pedidos **aprovados** são publicados |
+| `GRUPOS_ORACAO` | Grupo(s) onde os pedidos **aprovados** são publicados (o grupo real) |
+| `GRUPOS_ORACAO_TESTE` | Grupo(s) usados **no lugar** do anterior enquanto `MODO_TESTE=true` (obrigatório só no modo teste) |
 | `NUMEROS_VERIFICACAO` | Quem recebe os pedidos para aprovar e pode usar `!pedidos` / `!aprovar` |
 | `NUMERO_BOT` | Número do aparelho do bot (só dígitos, com 55 e DDD). Só é usado para parear |
 
@@ -123,6 +124,7 @@ No `.env`:
 ```
 MODO_TESTE=true
 NUMERO_TESTE=5521999999999@c.us   # opcional
+GRUPOS_ORACAO_TESTE=120363000000000000@g.us   # obrigatório no modo teste
 ```
 
 Com o modo teste ligado o bot **fica calado para todo mundo**, menos para:
@@ -137,6 +139,12 @@ em `testadores.json`, então um reinício ou um deploy não tira ninguém do tes
 No modo teste, **ligações** de quem não está testando também são ignoradas (o bot
 não rejeita a chamada nem manda o aviso). Isso permite rodar o bot num número
 pessoal sem atrapalhar o dono do aparelho.
+
+**Pedidos de oração no modo teste:** o `!aprovar` publica no `GRUPOS_ORACAO_TESTE`,
+**nunca** no `GRUPOS_ORACAO` (o grupo real), e o bot responde "encaminhado ao grupo
+de TESTE" para deixar isso visível. O bot nem sobe com `MODO_TESTE=true` sem
+`GRUPOS_ORACAO_TESTE`. Para abrir ao público basta virar `MODO_TESTE=false`: o
+destino volta sozinho para `GRUPOS_ORACAO`.
 
 Observações:
 
