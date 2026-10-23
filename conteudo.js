@@ -24,7 +24,7 @@ const DADOS = {
     horarioSecretaria: [
         { rotulo: 'Segunda a sexta', dias: [1, 2, 3, 4, 5], abre: '06:30', fecha: '18:30' },
         { rotulo: 'Sábado', dias: [6], abre: '08:00', fecha: '12:00' },
-        { rotulo: 'Domingo', dias: [0], abre: '06:30', fecha: '12:00' }
+        { rotulo: 'Domingo', dias: [0], abre: '07:30', fecha: '12:00' }
     ]
 };
 

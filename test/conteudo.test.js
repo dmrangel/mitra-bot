@@ -43,7 +43,7 @@ test('os valores e dados de contato continuam nos textos', () => {
     const tudo = OPCOES.map(o => (typeof o.resposta === 'function' ? o.resposta({ secretariaAberta: true }) : o.resposta)).join('\n');
     for (const trecho of ['R$ 150', 'R$ 5 por intenção', 'R$ 15', 'R$ 50', 'R$ 3.500,00', '150 pessoas',
         'Agência 0436', 'Conta poupança 6682220-6', '33.593.575/0222-74', '2240-2869', 'arquivodacuriarj@arqrio.org.br',
-        DADOS.pix, DADOS.endereco, ...DADOS.telefones, '6h30 às 18h30', '8h às 12h', 'Domingo: 6h30 às 12h']) {
+        DADOS.pix, DADOS.endereco, ...DADOS.telefones, '6h30 às 18h30', '8h às 12h', 'Domingo: 7h30 às 12h']) {
         assert.ok(tudo.includes(trecho), `sumiu do conteúdo: ${trecho}`);
     }
 });
