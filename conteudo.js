@@ -348,7 +348,7 @@ ${TELEFONES}
 
 Por mensagem, é só escrever aqui.`,
 
-    // --- Para a equipe (NUMEROS_VERIFICACAO e grupos) ---------------------
+    // --- Para a equipe (grupo da secretaria, NUMEROS_VERIFICACAO) ---------
     equipe: {
         novoPedido: ({ nome, link, texto, id }) => `📥 *Novo pedido de oração para aprovar*
 
@@ -358,7 +358,7 @@ Por mensagem, é só escrever aqui.`,
 *Pedido:*
 ${texto}
 
-Para publicar no grupo de oração, responda:
+Para publicar no grupo de oração, responda neste grupo:
 !aprovar ${id}`,
 
         pedidoPublicado: ({ nome, texto }) => `🙏 *Pedido de oração*

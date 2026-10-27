@@ -26,6 +26,37 @@ test('ehAdmin: contato comum não é admin', () => {
     assert.ok(!ehAdmin({ fromMe: false, from: 'grupo@g.us', author: '5521888888888@c.us' }));
 });
 
+test('ehAdmin: qualquer pessoa do grupo da secretaria é admin dentro dele, e só nele', () => {
+    config.modoTeste = false;
+    config.numerosVerificacao = ['5521999999999@c.us'];
+    config.gruposNotificacaoHumano = ['secretaria@g.us'];
+    assert.ok(ehAdmin({ fromMe: false, from: 'secretaria@g.us', author: '5521888888888@c.us' }));
+    assert.ok(!ehAdmin({ fromMe: false, from: 'outro@g.us', author: '5521888888888@c.us' }));
+    assert.ok(!ehAdmin({ fromMe: false, from: '5521888888888@c.us' }), 'no privado continua só quem verifica');
+});
+
+test('ehAdmin: sem grupo da secretaria, os verificadores do fallback não viram admin por "grupo"', () => {
+    config.modoTeste = false;
+    config.numerosVerificacao = ['5521999999999@c.us'];
+    config.gruposNotificacaoHumano = [];
+    assert.ok(!ehAdmin({ fromMe: false, from: 'qualquer@g.us', author: '5521888888888@c.us' }));
+});
+
+test('ehAdmin no modo teste: vale o grupo de teste, não o da secretaria', () => {
+    config.modoTeste = true;
+    config.numerosVerificacao = ['5521999999999@c.us'];
+    config.gruposNotificacaoHumano = ['secretaria@g.us'];
+    config.gruposOracaoTeste = ['teste@g.us'];
+    try {
+        assert.ok(ehAdmin({ fromMe: false, from: 'teste@g.us', author: '5521888888888@c.us' }));
+        assert.ok(!ehAdmin({ fromMe: false, from: 'secretaria@g.us', author: '5521888888888@c.us' }));
+    } finally {
+        config.modoTeste = false;
+        config.gruposOracaoTeste = [];
+        config.gruposNotificacaoHumano = [];
+    }
+});
+
 test('CMD_APROVAR reconhece o comando com e sem argumento, e não confunde com outros comandos', () => {
     assert.equal(CMD_APROVAR.test('!aprovar'), true);
     assert.equal(CMD_APROVAR.test('!aprovar ABC123'), true);

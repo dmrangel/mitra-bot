@@ -99,7 +99,9 @@ Do próprio aparelho do Santuário, dentro da conversa:
 | `!auto` | Devolve a conversa para o bot |
 | `!pedidos`, `!aprovar <ID>`, `!idgrupo` | Iguais aos de baixo |
 
-De qualquer número listado em `NUMEROS_VERIFICACAO` (ou do próprio aparelho):
+De qualquer número listado em `NUMEROS_VERIFICACAO` (ou do próprio aparelho), e
+também de **qualquer pessoa do grupo da secretaria** (`GRUPOS_NOTIFICACAO_HUMANO`),
+dentro dele:
 
 | Comando | Efeito |
 |---|---|
@@ -110,9 +112,15 @@ De qualquer número listado em `NUMEROS_VERIFICACAO` (ou do próprio aparelho):
 ## 5. Fluxo dos pedidos de oração
 
 1. A pessoa escolhe a opção **2** e escreve o pedido.
-2. O pedido vai para `NUMEROS_VERIFICACAO` com um ID.
-3. Alguém revisa e envia `!aprovar <ID>`.
-4. Só então ele é publicado em `GRUPOS_ORACAO`.
+2. O pedido vai para o **grupo da secretaria** (`GRUPOS_NOTIFICACAO_HUMANO`) com um ID
+   e o texto `!aprovar <ID>`. Sem grupo configurado, vai para `NUMEROS_VERIFICACAO`.
+3. Qualquer pessoa do grupo revisa e responde `!aprovar <ID>` ali mesmo.
+4. Só então ele é publicado em `GRUPOS_ORACAO`, e a confirmação volta ao grupo da
+   secretaria.
+
+Quem pode aprovar é quem está no grupo da secretaria: para dar ou tirar esse poder,
+basta entrar ou sair do grupo. No modo teste isso vale para o grupo de teste, e o
+grupo da secretaria não consegue aprovar nada.
 
 A fila fica salva em `pedidos.json`, então **um reinício não perde pedidos**.
 Pedidos não aprovados são descartados após `VALIDADE_PEDIDO_DIAS` (padrão: 7).
