@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { config, validar, gruposDeOracao } = require('../config');
+const { config, validar, gruposDeOracao, destinosDeAtendimento } = require('../config');
 
 // Sem sessão salva, NUMERO_BOT é obrigatório. Os testes partem de um número
 // válido e só o tiram de propósito.
@@ -159,6 +159,28 @@ test('gruposDeOracao: grupo de teste no modo teste, grupo real fora dele, nenhum
         // Falha para o lado seguro: sem grupo de teste, não cai no real.
         config.gruposOracaoTeste = [];
         assert.deepEqual(gruposDeOracao(), []);
+    });
+});
+
+test('destinosDeAtendimento: grupo de teste no modo teste; fora dele, secretaria ou verificadores; nada se faltar o de teste', () => {
+    comConfigTemporaria({
+        numerosVerificacao: ['5521999999999@c.us'],
+        gruposNotificacaoHumano: ['secretaria@g.us'],
+        gruposOracaoTeste: ['grupo-teste@g.us'],
+        modoTeste: false
+    }, () => {
+        assert.deepEqual(destinosDeAtendimento(), ['secretaria@g.us']);
+
+        config.gruposNotificacaoHumano = [];
+        assert.deepEqual(destinosDeAtendimento(), ['5521999999999@c.us']);
+
+        config.gruposNotificacaoHumano = ['secretaria@g.us'];
+        config.modoTeste = true;
+        assert.deepEqual(destinosDeAtendimento(), ['grupo-teste@g.us']);
+
+        // Falha para o lado seguro: sem grupo de teste, não cai na secretaria.
+        config.gruposOracaoTeste = [];
+        assert.deepEqual(destinosDeAtendimento(), []);
     });
 });
 

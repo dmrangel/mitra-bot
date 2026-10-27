@@ -514,6 +514,40 @@ test('certidão: foto pede texto; "voltar" volta ao menu sem avisar ninguém', a
     assert.equal(estado.modoDe(chatId), MODO.MENU);
 });
 
+// --- Avisos à equipe no modo teste --------------------------------------------
+
+test('modo teste: nomes do Mês das Almas, certidão e atendimento humano vão SÓ para o grupo de teste', async () => {
+    relogio.agora = () => EM_NOVEMBRO;
+    config.modoTeste = true;
+    config.numeroTeste = '5521000000000@c.us';
+    config.gruposOracaoTeste = ['grupo-teste@g.us'];
+    const chatId = '5521000000000@c.us';
+
+    estado.definirModo(chatId, MODO.ALMAS);
+    await tratarMensagem(criarMsg({ from: chatId, body: 'José da Silva\nMaria Souza' }));
+
+    estado.definirModo(chatId, MODO.CERTIDAO);
+    await tratarMensagem(criarMsg({ from: chatId, body: 'José, 1985, pais X e Y', timestamp: startupTime + 11 }));
+
+    const destinosDeGrupo = enviados.filter(e => e.destino.endsWith('@g.us')).map(e => e.destino);
+    assert.ok(destinosDeGrupo.length >= 2, 'os dois avisos deveriam sair');
+    assert.deepEqual([...new Set(destinosDeGrupo)], ['grupo-teste@g.us']);
+    assert.equal(enviados.some(e => e.destino === 'grupo-humano@g.us'), false, 'a secretaria real não pode receber aviso em modo teste');
+});
+
+test('fora do modo teste, os avisos continuam indo para GRUPOS_NOTIFICACAO_HUMANO e ignoram o grupo de teste', async () => {
+    relogio.agora = () => EM_NOVEMBRO;
+    config.modoTeste = false;
+    config.gruposOracaoTeste = ['grupo-teste@g.us'];
+    const chatId = novoChatId();
+
+    estado.definirModo(chatId, MODO.ALMAS);
+    await tratarMensagem(criarMsg({ from: chatId, body: 'José da Silva' }));
+
+    assert.ok(enviados.some(e => e.destino === 'grupo-humano@g.us'));
+    assert.equal(enviados.some(e => e.destino === 'grupo-teste@g.us'), false);
+});
+
 // --- Campanha Mês das Almas ---------------------------------------------------
 
 test('campanha: "1" em novembro mostra a campanha; os nomes vão direto para o atendimento, sem fila de aprovação', async () => {
