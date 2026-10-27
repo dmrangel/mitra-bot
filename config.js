@@ -106,7 +106,7 @@ function validar() {
         avisos.push('MODO_TESTE=true sem NUMERO_TESTE: o bot só vai atender quem enviar /teste.');
     }
     if (config.modoTeste && config.gruposOracaoTeste.length === 0) {
-        erros.push('MODO_TESTE=true exige GRUPOS_ORACAO_TESTE: no modo teste os pedidos aprovados nunca vão para GRUPOS_ORACAO (o grupo real).');
+        erros.push('MODO_TESTE=true exige GRUPOS_ORACAO_TESTE: no modo teste os pedidos aprovados e os avisos à equipe nunca vão para os grupos reais.');
     }
     if (config.modoTeste && config.gruposOracaoTeste.some(t => config.gruposOracao.some(r => normalizarJid(r) === normalizarJid(t)))) {
         avisos.push('GRUPOS_ORACAO_TESTE e GRUPOS_ORACAO apontam para o mesmo grupo: o modo teste não está separado da produção.');
@@ -148,4 +148,17 @@ function gruposDeOracao() {
     return config.modoTeste ? config.gruposOracaoTeste : config.gruposOracao;
 }
 
-module.exports = { config, validar, jaPareado, gruposDeOracao };
+/**
+ * Quem recebe os avisos à equipe (atendimento humano, certidão, nomes do Mês das
+ * Almas): no modo teste, o grupo de teste, nunca a secretaria de verdade; fora
+ * dele, GRUPOS_NOTIFICACAO_HUMANO, ou os verificadores se não houver grupo. No
+ * modo teste sem grupo de teste a lista é vazia (a validação já impede subir assim).
+ */
+function destinosDeAtendimento() {
+    if (config.modoTeste) return config.gruposOracaoTeste;
+    return config.gruposNotificacaoHumano.length
+        ? config.gruposNotificacaoHumano
+        : config.numerosVerificacao;
+}
+
+module.exports = { config, validar, jaPareado, gruposDeOracao, destinosDeAtendimento };
