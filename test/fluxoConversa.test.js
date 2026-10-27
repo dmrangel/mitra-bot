@@ -15,7 +15,9 @@ config.arquivoTestadores = path.join(os.tmpdir(), `mitra-bot-teste-fluxo-testado
 test.after(() => require('fs').rmSync(config.arquivoTestadores, { force: true }));
 const { startupTime } = require('../lib/startup');
 const { MSG } = require('../conteudo');
-const MENU_PRINCIPAL = MSG.menu;
+const { montarMenu } = require('../conteudo');
+// O menu do dia padrão dos testes (ver AGORA_PADRAO abaixo).
+const MENU_PRINCIPAL = montarMenu(new Date('2026-12-10T13:00:00Z'));
 
 // Mocka o envio ANTES de requerer qualquer módulo que dependa dele (estado,
 // timers, pedidos, fluxoConversa): o require cacheia o mesmo objeto, então a
@@ -29,6 +31,12 @@ envio.enviarParaTodos = async (destinos, texto) => {
     return destinos.length;
 };
 
+const relogio = require('../lib/relogio');
+// Quinta 10/12/2026, 10h em Brasília: secretaria aberta e sem campanha no ar,
+// então o menu é 1 = Missas ... 8 = Atendente em qualquer dia que o teste rode.
+const AGORA_PADRAO = new Date('2026-12-10T13:00:00Z');
+const EM_NOVEMBRO = new Date('2026-11-10T13:00:00Z');
+relogio.agora = () => AGORA_PADRAO;
 const estado = require('../lib/estado');
 const { MODO } = estado;
 const timers = require('../lib/timers');
@@ -57,6 +65,7 @@ function criarMsg(overrides) {
 }
 
 test.beforeEach(() => {
+    relogio.agora = () => AGORA_PADRAO;
     enviados.length = 0;
     config.blacklist = [];
     config.modoTeste = false;
@@ -408,9 +417,9 @@ test('pedido de oração: foto pede texto e mantém o modo oração', async () =
     assert.equal(estado.modoDe(chatId), MODO.ORACAO);
 });
 
-test('atendente fora do horário: a pessoa sabe que está fechado e a equipe é avisada disso', async (t) => {
-    // Sábado 24/10/2026, 15h em Brasília: secretaria fechada.
-    t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-24T18:00:00Z') });
+test('atendente fora do horário: a pessoa sabe que está fechado e a equipe é avisada disso', async () => {
+    // Sábado 12/12/2026, 15h em Brasília: secretaria fechada.
+    relogio.agora = () => new Date('2026-12-12T18:00:00Z');
     const msg = criarMsg({ body: '8' });
 
     await tratarMensagem(msg);
@@ -420,9 +429,9 @@ test('atendente fora do horário: a pessoa sabe que está fechado e a equipe é 
     assert.equal(estado.modoDe(msg.from), MODO.ATENDENTE);
 });
 
-test('atendente dentro do horário: sem aviso de fechado', async (t) => {
-    // Sexta 23/10/2026, 10h em Brasília.
-    t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-23T13:00:00Z') });
+test('atendente dentro do horário: sem aviso de fechado', async () => {
+    // Sexta 11/12/2026, 10h em Brasília.
+    relogio.agora = () => new Date('2026-12-11T13:00:00Z');
     const msg = criarMsg({ body: 'quero falar com um atendente' });
 
     await tratarMensagem(msg);
@@ -503,4 +512,66 @@ test('certidão: foto pede texto; "voltar" volta ao menu sem avisar ninguém', a
     await tratarMensagem(criarMsg({ from: chatId, body: 'voltar' }));
     assert.deepEqual(enviados, [{ destino: chatId, texto: MSG.voltouAoMenu }]);
     assert.equal(estado.modoDe(chatId), MODO.MENU);
+});
+
+// --- Campanha Mês das Almas ---------------------------------------------------
+
+test('campanha: "1" em novembro mostra a campanha; os nomes vão direto para o atendimento, sem fila de aprovação', async () => {
+    relogio.agora = () => EM_NOVEMBRO;
+    const chatId = novoChatId();
+
+    await tratarMensagem(criarMsg({ from: chatId, body: '1' }));
+    assert.match(enviados.find(e => e.destino === chatId).texto, /mês das almas/i);
+    assert.equal(estado.modoDe(chatId), MODO.ALMAS);
+
+    enviados.length = 0;
+    await tratarMensagem(criarMsg({ from: chatId, body: 'José da Silva\nMaria Souza', timestamp: startupTime + 11 }));
+
+    const aviso = enviados.find(e => e.destino === 'grupo-humano@g.us');
+    assert.ok(aviso, 'os nomes deveriam ir para o destino do atendimento');
+    assert.match(aviso.texto, /José da Silva\nMaria Souza/);
+    assert.deepEqual(enviados.filter(e => e.destino === chatId), [{ destino: chatId, texto: MSG.almasRecebidos }]);
+    assert.equal(pedidos.pedidosPendentes.size, 0, 'não passa pela aprovação');
+    assert.equal(enviados.some(e => e.destino === '5521999999999@c.us'), false, 'não vai para quem aprova pedidos');
+});
+
+test('campanha: aceita mais nomes em mensagens seguidas', async () => {
+    relogio.agora = () => EM_NOVEMBRO;
+    const chatId = novoChatId();
+    estado.definirModo(chatId, MODO.ALMAS);
+
+    await tratarMensagem(criarMsg({ from: chatId, body: 'João' }));
+    await tratarMensagem(criarMsg({ from: chatId, body: 'Ana', timestamp: startupTime + 11 }));
+
+    assert.equal(enviados.filter(e => e.destino === 'grupo-humano@g.us').length, 2);
+    assert.equal(estado.modoDe(chatId), MODO.ALMAS);
+});
+
+test('campanha: "obrigada" encerra, "ok" não vira nome, foto pede texto, "voltar" volta ao menu', async () => {
+    relogio.agora = () => EM_NOVEMBRO;
+    const chatId = novoChatId();
+
+    estado.definirModo(chatId, MODO.ALMAS);
+    await tratarMensagem(criarMsg({ from: chatId, body: 'ok' }));
+    assert.equal(enviados.length, 0);
+
+    await tratarMensagem(criarMsg({ from: chatId, hasMedia: true }));
+    assert.deepEqual(enviados, [{ destino: chatId, texto: MSG.almasSoTexto }]);
+
+    enviados.length = 0;
+    await tratarMensagem(criarMsg({ from: chatId, body: 'obrigada' }));
+    assert.deepEqual(enviados, [{ destino: chatId, texto: MSG.encerramento }]);
+    assert.equal(estado.modoDe(chatId), MODO.MENU);
+
+    enviados.length = 0;
+    estado.definirModo(chatId, MODO.ALMAS);
+    await tratarMensagem(criarMsg({ from: chatId, body: 'voltar' }));
+    assert.equal(enviados[0].texto, MSG.voltouAoMenu);
+    assert.ok(enviados[0].texto.includes('*1* · Campanha Mês das Almas'));
+});
+
+test('campanha encerrada: "1" volta a ser Missas', async () => {
+    const msg = criarMsg({ body: '1' });
+    await tratarMensagem(msg);
+    assert.match(enviados.find(e => e.destino === msg.from).texto, /Missas e confissões/);
 });

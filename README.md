@@ -165,6 +165,7 @@ Observações:
 | `lib/estado.js` | Em que modo está cada conversa: menu, oração, atendente, pausado |
 | `lib/menuMatcher.js` | Reconhece número da opção, palavras-chave, despedidas e "ok" |
 | `lib/horario.js` | Secretaria aberta agora? (fuso de Brasília; feriados não contam) |
+| `lib/relogio.js` | "Agora" do bot (os testes fixam a data por aqui) |
 | `lib/cliente.js` | Conexão com o WhatsApp (Baileys), reconexão, pareamento |
 | `lib/mensagem.js` | Converte a mensagem do Baileys para o formato usado pelo fluxo |
 | `lib/testadores.js` | Modo teste: quem enviou `/teste` (salvo em `testadores.json`) |
@@ -172,7 +173,9 @@ Observações:
 | `deploy.sh`, `.github/workflows/deploy.yml` | Deploy automático na VM |
 
 Para mudar um texto, um horário ou um valor, mexa **só no `conteudo.js`**. O
-menu principal é montado a partir da lista de opções, e telefones e horário da
+menu principal é montado a partir da lista de opções: a ordem da lista é a
+numeração. Uma opção temporária (campanha) leva `ate: 'AAAA-MM-DD'` e sai do
+menu sozinha nesse dia, renumerando as outras, e telefones e horário da
 secretaria são definidos uma vez em `DADOS`. Rode `npm test`: há testes que
 avisam se um valor sumiu dos textos ou se a mesma palavra-chave ficou em duas
 opções.
