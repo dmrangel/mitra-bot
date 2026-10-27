@@ -46,7 +46,7 @@ Variáveis obrigatórias:
 |---|---|
 | `GRUPOS_ORACAO` | Grupo(s) onde os pedidos **aprovados** são publicados (o grupo real) |
 | `GRUPOS_ORACAO_TESTE` | Grupo(s) de **teste**, usados enquanto `MODO_TESTE=true` no lugar de `GRUPOS_ORACAO` **e** de `GRUPOS_NOTIFICACAO_HUMANO` (obrigatório só no modo teste) |
-| `NUMEROS_VERIFICACAO` | Quem recebe os pedidos para aprovar e pode usar `!pedidos` / `!aprovar` |
+| `NUMEROS_VERIFICACAO` | Números que também podem usar `!pedidos` / `!aprovar` (a secretaria já aprova dentro do grupo). Só é obrigatório se `GRUPOS_NOTIFICACAO_HUMANO` estiver vazio: aí é para onde vão os avisos |
 | `NUMERO_BOT` | Número do aparelho do bot (só dígitos, com 55 e DDD). Só é usado para parear |
 
 O bot **não sobe** se alguma delas estiver vazia — ele avisa exatamente o que
