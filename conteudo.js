@@ -12,6 +12,8 @@
 // Formatação do WhatsApp: *negrito*, _itálico_.
 // ===========================================================================
 
+const relogio = require('./lib/relogio');
+
 const DADOS = {
     nome: 'Santuário de Santa Rita',
     telefones: ['(21) 2253-7564', '(21) 97908-2767'],
@@ -19,7 +21,8 @@ const DADOS = {
     pix: '21974797064',
 
     // Horário de funcionamento da secretaria (fuso de Brasília). Usado no texto
-    // da opção 6 e para saber se há alguém para atender a opção 8.
+    // de "Secretaria e endereço" e para saber se há alguém para atender em
+    // "Falar com um atendente".
     // dias: 0 = domingo, 1 = segunda ... 6 = sábado. Horas no formato HH:MM.
     horarioSecretaria: [
         { rotulo: 'Segunda a sexta', dias: [1, 2, 3, 4, 5], abre: '06:30', fecha: '18:30' },
@@ -41,7 +44,7 @@ const HORARIO_SECRETARIA = DADOS.horarioSecretaria
     .map(f => `• ${f.rotulo}: ${hora(f.abre)} às ${hora(f.fecha)}`)
     .join('\n');
 const VOLTAR = 'Para voltar ao menu, envie *voltar*.';
-// Repetidos na opção 3 e no pedido de certidão.
+// Repetidos em "Batismo e certidões" e no pedido de certidão.
 const CERTIDAO_TAXA = `• Taxa: R$ 15, pelo PIX ${DADOS.pix}
 • Prazo: 7 dias. Ligue antes para confirmar.`;
 const CERTIDAO_CURIA = `Batizados antes de 1901: procure o arquivo da Cúria
@@ -49,7 +52,11 @@ const CERTIDAO_CURIA = `Batizados antes de 1901: procure o arquivo da Cúria
 
 // --- Menu -----------------------------------------------------------------
 //
-// id:        o número que a pessoa digita
+// A ORDEM da lista é a numeração do menu: a primeira opção visível é o 1, e
+// assim por diante. Uma opção temporária que sai do ar renumera as outras
+// sozinha.
+//
+// chave:     nome interno e fixo da opção (não aparece para ninguém)
 // titulo:    como a opção aparece no menu principal
 // palavras:  palavras ou expressões que levam a esta opção (sem acento, minúsculas
 //            ou não, tanto faz). Evite palavras comuns em conversa ("hora",
@@ -58,13 +65,41 @@ const CERTIDAO_CURIA = `Batizados antes de 1901: procure o arquivo da Cúria
 // resposta:  o texto enviado. Pode ser uma função que recebe
 //            { secretariaAberta } quando o texto depende do horário.
 // acao:      'oracao' (o próximo texto vira pedido de oração),
+//            'almas' (os textos seguintes vão para a equipe como nomes),
 //            'certidao' (o próximo texto vai para a equipe de atendimento) ou
 //            'atendente' (pausa o bot e avisa a equipe). Sem acao = só responde.
 // noMenu:    true = não aparece no menu numerado; só por palavra-chave.
+// ate:       'AAAA-MM-DD' = opção temporária: some do menu (e as palavras-chave
+//            param de valer) a partir desse dia, no fuso de Brasília.
 
 const OPCOES = [
     {
-        id: '1',
+        // Campanha de novembro. Sai do menu sozinha em 1º de dezembro.
+        chave: 'almas',
+        ate: '2026-12-01',
+        titulo: 'Campanha Mês das Almas',
+        palavras: [
+            'almas', 'mes das almas', 'finados', 'dia de finados', 'campanha',
+            'ente querido', 'entes queridos', 'nomes dos falecidos'
+        ],
+        resposta: `🕯️ *Novembro, mês das almas*
+
+Homenageie seu ente querido com uma oração! Durante todo o mês de novembro, rezamos diariamente pelos familiares e amigos falecidos.
+
+*Envie aqui os nomes* dos seus falecidos, numa mensagem de texto, e eles serão lembrados em nossas orações.
+
+*Santa Missa pelas Almas*
+• Segunda a sexta: 7h
+• Sábado: 8h
+• Domingo: 9h
+
+Se quiser fazer um donativo, a chave PIX é ${DADOS.pix}.
+
+${VOLTAR}`,
+        acao: 'almas'
+    },
+    {
+        chave: 'missas',
         titulo: 'Missas e confissões',
         palavras: [
             'missa', 'missas', 'confissao', 'confissoes', 'confessar', 'horario de missa',
@@ -93,7 +128,7 @@ As intenções são marcadas só por telefone, com a secretaria, ou pessoalmente
 ${TELEFONES}`
     },
     {
-        id: '2',
+        chave: 'oracao',
         titulo: 'Pedido de oração',
         palavras: [
             'oracao', 'oracoes', 'pedido de oracao', 'rezar', 'rezem', 'reze', 'orar',
@@ -107,7 +142,7 @@ ${VOLTAR}`,
         acao: 'oracao'
     },
     {
-        id: '3',
+        chave: 'batismo',
         titulo: 'Batismo e certidões',
         palavras: [
             'batismo', 'batismos', 'batizado', 'batizar', 'batizados', 'padrinho', 'padrinhos',
@@ -132,10 +167,10 @@ ${CERTIDAO_CURIA}
 Dúvidas: ${TELEFONES}`
     },
     {
-        // Fora do menu numerado: chega-se aqui pela opção 3 ("envie certidão")
+        // Fora do menu numerado: chega-se aqui por Batismo e certidões ("envie certidão")
         // ou escrevendo direto "preciso da certidão de batismo". O texto
         // seguinte da pessoa vai para a equipe de atendimento.
-        id: 'certidao',
+        chave: 'certidao',
         noMenu: true,
         titulo: 'Pedido de certidão de batismo',
         palavras: [
@@ -158,7 +193,7 @@ ${VOLTAR}`,
         acao: 'certidao'
     },
     {
-        id: '4',
+        chave: 'casamentos',
         titulo: 'Casamentos',
         palavras: [
             'casamento', 'casamentos', 'casar', 'matrimonio', 'noiva', 'noivo', 'noivos',
@@ -174,7 +209,7 @@ Informações e agendamento com a secretaria:
 ${TELEFONES}`
     },
     {
-        id: '5',
+        chave: 'doacoes',
         titulo: 'Doações e PIX',
         palavras: [
             'doacao', 'doacoes', 'doar', 'pix', 'chave pix', 'dizimo', 'dizimos', 'oferta',
@@ -191,7 +226,7 @@ Mitra Arquiepiscopal
 CNPJ 33.593.575/0222-74`
     },
     {
-        id: '6',
+        chave: 'secretaria',
         titulo: 'Secretaria e endereço',
         palavras: [
             'secretaria', 'endereco', 'localizacao', 'onde fica', 'como chegar', 'mapa', 'cep',
@@ -207,7 +242,7 @@ ${TELEFONES}
 📍 ${DADOS.endereco}`
     },
     {
-        id: '7',
+        chave: 'redes',
         titulo: 'Comunidade e redes sociais',
         palavras: [
             'redes sociais', 'rede social', 'instagram', 'insta', 'facebook', 'youtube',
@@ -218,12 +253,12 @@ ${TELEFONES}
 Participe da nossa comunidade no WhatsApp:
 https://chat.whatsapp.com/I4pJywPvsR1A0Zue6i03tf
 
-• Instagram: https://www.instagram.com/santuarioarquidiocesanodesantarita/
+• Instagram: https://www.instagram.com/santuariodesantaritarj
 • Facebook: https://www.facebook.com/santuarioarquidiocesanodesantarita
 • YouTube: https://www.youtube.com/channel/UCplLFwYdOcN7AbCLVh_SGcg`
     },
     {
-        id: '8',
+        chave: 'atendente',
         titulo: 'Falar com um atendente',
         palavras: [
             'atendente', 'atendimento', 'atendimento humano', 'humano', 'secretario',
@@ -248,20 +283,42 @@ ${VOLTAR}`),
     }
 ];
 
-const MENU_PRINCIPAL = `Olá! Seja bem-vindo(a) ao atendimento do *${DADOS.nome}*. 🌹
+// --- Menu numerado (depende da data por causa das opções temporárias) -------
+
+const formatoData = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' });
+
+/** A opção está no ar nesta data? (opções sem "ate" estão sempre) */
+function opcaoAtiva(opcao, data = relogio.agora()) {
+    return !opcao.ate || formatoData.format(data) < opcao.ate;
+}
+
+/** As opções do menu, na ordem, com o número que a pessoa digita. */
+function menuNumerado(data = relogio.agora()) {
+    return OPCOES
+        .filter(o => !o.noMenu && opcaoAtiva(o, data))
+        .map((opcao, i) => ({ numero: String(i + 1), opcao }));
+}
+
+function montarMenu(data = relogio.agora()) {
+    return `Olá! Seja bem-vindo(a) ao atendimento do *${DADOS.nome}*. 🌹
 
 Responda com o *número* do assunto:
 
-${OPCOES.filter(o => !o.noMenu).map(o => `*${o.id}* · ${o.titulo}`).join('\n')}
+${menuNumerado(data).map(({ numero, opcao }) => `*${numero}* · ${opcao.titulo}`).join('\n')}
 
 _Este número não recebe ligações._`;
+}
 
 // --- Mensagens do fluxo ---------------------------------------------------
 
 const MSG = {
-    menu: MENU_PRINCIPAL,
-
-    voltouAoMenu: `Certo, as respostas automáticas estão de volta.\n\n${MENU_PRINCIPAL}`,
+    // Getters: o menu é montado na hora, para refletir as opções temporárias.
+    get menu() {
+        return montarMenu();
+    },
+    get voltouAoMenu() {
+        return `Certo, as respostas automáticas estão de volta.\n\n${montarMenu()}`;
+    },
 
     soTexto: 'Este atendimento automático só consegue ler mensagens de texto. Por favor, escreva sua dúvida ou responda com o número de uma opção do menu.',
 
@@ -273,6 +330,10 @@ const MSG = {
     pedidoSoTexto: `Para encaminhar seu pedido, ele precisa ser escrito em texto. 🙏\n\n${VOLTAR}`,
     pedidoRepetido: `Acabamos de receber um pedido seu e ele já está com a nossa equipe. 🙏 Aguarde alguns segundos antes de enviar outro.\n\n${VOLTAR}`,
     pedidoRecebido: 'Recebemos seu pedido de oração. 🙏 Nossa equipe vai rezar pela sua intenção.\n\nSe precisar de mais alguma coisa, envie *menu*.',
+
+    // Campanha Mês das Almas
+    almasSoTexto: `Para encaminhar, envie os nomes em texto. 🕯️\n\n${VOLTAR}`,
+    almasRecebidos: `🕯️ Recebemos os nomes. Eles serão lembrados em nossas orações.\n\nSe quiser incluir mais nomes, é só enviar. ${VOLTAR}`,
 
     // Pedido de certidão
     certidaoSoTexto: `Para encaminhar o pedido, envie os dados em texto.\n\n${VOLTAR}`,
@@ -323,6 +384,14 @@ ${texto}
 
 A pessoa aguarda um secretário para confirmar pagamento (R$ 15) e prazo. As respostas automáticas ficam pausadas na conversa dela por algumas horas; para religar antes, envie *!auto* na conversa.`,
 
+        nomesAlmas: ({ nome, link, texto }) => `🕯️ *Mês das Almas: nomes recebidos*
+
+*De:* ${nome}
+*WhatsApp:* ${link}
+
+*Nomes:*
+${texto}`,
+
         semPedidos: 'Nenhum pedido aguardando aprovação.',
         listaPedidos: pedidos => `📋 *Pedidos aguardando aprovação*\n\n${pedidos
             .map(p => `*${p.id}* · ${p.nome}\n${p.resumo}`)
@@ -340,4 +409,4 @@ A pessoa aguarda um secretário para confirmar pagamento (R$ 15) e prazo. As res
     testeDesativado: 'Modo de teste desativado para você. Para voltar, envie */teste*.'
 };
 
-module.exports = { DADOS, OPCOES, MSG };
+module.exports = { DADOS, OPCOES, MSG, menuNumerado, opcaoAtiva, montarMenu };
