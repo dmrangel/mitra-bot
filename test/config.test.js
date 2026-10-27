@@ -32,10 +32,23 @@ test('config válida não produz erros bloqueantes', () => {
     });
 });
 
-test('sem NUMEROS_VERIFICACAO, validar() bloqueia', () => {
-    comConfigTemporaria({ numerosVerificacao: [], gruposOracao: ['grupo@g.us'] }, () => {
+test('sem NUMEROS_VERIFICACAO e sem grupo de atendimento, validar() bloqueia', () => {
+    comConfigTemporaria({ numerosVerificacao: [], gruposNotificacaoHumano: [], gruposOracao: ['grupo@g.us'] }, () => {
         const { erros } = validar();
         assert.ok(erros.some(e => e.includes('NUMEROS_VERIFICACAO')));
+    });
+});
+
+test('sem NUMEROS_VERIFICACAO mas com grupo de atendimento, validar() não bloqueia nem avisa (a secretaria aprova no grupo)', () => {
+    comConfigTemporaria({
+        numerosVerificacao: [],
+        gruposNotificacaoHumano: ['secretaria@g.us'],
+        gruposOracao: ['grupo@g.us'],
+        modoTeste: false
+    }, () => {
+        const { erros, avisos } = validar();
+        assert.deepEqual(erros, []);
+        assert.deepEqual(avisos, []);
     });
 });
 

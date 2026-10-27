@@ -93,8 +93,10 @@ function validar() {
     const erros = [];
     const avisos = [];
 
-    if (config.numerosVerificacao.length === 0) {
-        erros.push('NUMEROS_VERIFICACAO está vazio: os pedidos de oração não teriam para onde ir.');
+    // Quem aprova pedidos é o grupo da secretaria; NUMEROS_VERIFICACAO só é
+    // obrigatório quando não há grupo, porque aí é para onde os avisos vão.
+    if (config.numerosVerificacao.length === 0 && config.gruposNotificacaoHumano.length === 0) {
+        erros.push('NUMEROS_VERIFICACAO e GRUPOS_NOTIFICACAO_HUMANO estão vazios: os pedidos de oração não teriam para onde ir.');
     }
     if (config.gruposOracao.length === 0) {
         erros.push('GRUPOS_ORACAO está vazio: pedidos aprovados não seriam publicados em lugar nenhum.');
