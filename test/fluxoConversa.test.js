@@ -116,8 +116,9 @@ test('pedido de oração escrito logo após escolher a opção 2 não é engolid
     assert.equal(estado.modoDe(msg1.from), MODO.MENU);
     const confirmacao = enviados.find(e => e.destino === msg1.from && /Recebemos seu pedido de oração/.test(e.texto));
     assert.ok(confirmacao, 'deveria confirmar o recebimento do pedido');
-    const notificacao = enviados.find(e => e.destino === '5521999999999@c.us' && /Novo pedido de oração para aprovar/.test(e.texto));
-    assert.ok(notificacao, 'deveria notificar quem verifica pedidos');
+    const notificacao = enviados.find(e => e.destino === 'grupo-humano@g.us' && /Novo pedido de oração para aprovar/.test(e.texto));
+    assert.ok(notificacao, 'o aviso com o !aprovar deveria ir para o grupo da secretaria');
+    assert.equal(enviados.some(e => e.destino === '5521999999999@c.us' && /Novo pedido/.test(e.texto)), false, 'não vai mais por privado');
     const pendente = [...pedidos.pedidosPendentes.values()].find(p => p.de === msg1.from);
     assert.ok(pendente, 'o pedido deveria estar na fila de aprovação');
 });
@@ -350,6 +351,42 @@ test('modo teste: um !aprovar de quem verifica publica no grupo de teste, nunca 
 
     assert.equal(pedidos.pedidosPendentes.has('FLX1'), false);
     assert.ok(enviados.some(e => e.destino === 'grupo-teste@g.us' && /Pedido de oração/.test(e.texto)));
+    assert.equal(enviados.some(e => e.destino === 'grupo-real@g.us'), false);
+});
+
+test('aprovação no grupo da secretaria: qualquer pessoa de lá publica no grupo de oração real, só depois do !aprovar', async () => {
+    config.gruposOracao = ['grupo-real@g.us'];
+    pedidos.pedidosPendentes.set('GRP1', { nome: 'Ana', texto: 'Por cura', de: '5521911111111@c.us', criadoEm: Date.now() });
+
+    // Quem escreve não está em NUMEROS_VERIFICACAO: vale por estar no grupo da secretaria.
+    await tratarMensagem(criarMsg({ from: 'grupo-humano@g.us', author: '5521977777777@c.us', body: '!aprovar grp1' }));
+
+    assert.equal(pedidos.pedidosPendentes.has('GRP1'), false);
+    assert.ok(enviados.some(e => e.destino === 'grupo-real@g.us' && /Pedido de oração/.test(e.texto)));
+    assert.ok(enviados.some(e => e.destino === 'grupo-humano@g.us' && /aprovado e publicado/.test(e.texto)), 'a confirmação volta ao grupo da secretaria');
+});
+
+test('!aprovar de um grupo que não é o da secretaria é ignorado', async () => {
+    config.gruposOracao = ['grupo-real@g.us'];
+    pedidos.pedidosPendentes.set('GRP2', { nome: 'Ana', texto: 'Por cura', de: '5521911111111@c.us', criadoEm: Date.now() });
+
+    await tratarMensagem(criarMsg({ from: 'outro-grupo@g.us', author: '5521977777777@c.us', body: '!aprovar grp2' }));
+
+    assert.equal(pedidos.pedidosPendentes.has('GRP2'), true);
+    assert.equal(enviados.length, 0);
+});
+
+test('modo teste: o !aprovar do grupo de teste publica no grupo de teste; o grupo da secretaria não manda em nada', async () => {
+    config.modoTeste = true;
+    config.gruposOracao = ['grupo-real@g.us'];
+    config.gruposOracaoTeste = ['grupo-teste@g.us'];
+    pedidos.pedidosPendentes.set('GRP3', { nome: 'Ana', texto: 'Por cura', de: '5521911111111@c.us', criadoEm: Date.now() });
+
+    await tratarMensagem(criarMsg({ from: 'grupo-humano@g.us', author: '5521977777777@c.us', body: '!aprovar grp3' }));
+    assert.equal(pedidos.pedidosPendentes.has('GRP3'), true, 'a secretaria real não aprova enquanto estiver em modo teste');
+
+    await tratarMensagem(criarMsg({ from: 'grupo-teste@g.us', author: '5521977777777@c.us', body: '!aprovar grp3' }));
+    assert.equal(pedidos.pedidosPendentes.has('GRP3'), false);
     assert.equal(enviados.some(e => e.destino === 'grupo-real@g.us'), false);
 });
 
