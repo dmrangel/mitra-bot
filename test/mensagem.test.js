@@ -157,3 +157,26 @@ test('reply() responde na mesma conversa', async () => {
     await msg.reply('teste');
     assert.deepEqual(enviados, [{ destino: '5521999999999@s.whatsapp.net', texto: 'teste' }]);
 });
+
+test('status de um contato é ignorado, mesmo trazendo o número de quem postou', async () => {
+    // Formato real que o WhatsApp entrega: remoteJid é o status e o autor vem em remoteJidAlt/participant.
+    const status = bruta({
+        remoteJid: 'status@broadcast',
+        remoteJidAlt: '5521981858084@s.whatsapp.net',
+        participant: '205600134848521@lid'
+    }, { extendedTextMessage: { text: 'bom dia!' } });
+    assert.equal(await adaptarMensagem(status), null);
+    assert.equal(await adaptarMensagem(bruta({ remoteJid: 'status@broadcast' }, { imageMessage: {} })), null);
+    assert.equal(await adaptarMensagem(bruta({ remoteJid: 'status@broadcast' }, { conversation: '1' })), null);
+});
+
+test('lista de transmissão e canal também são ignorados', async () => {
+    assert.equal(await adaptarMensagem(bruta({ remoteJid: '1234567890@broadcast' })), null);
+    assert.equal(await adaptarMensagem(bruta({ remoteJid: '120363000000000000@newsletter' })), null);
+});
+
+test('conversa privada e grupo continuam sendo tratadas', async () => {
+    assert.ok(await adaptarMensagem(bruta()));
+    assert.ok(await adaptarMensagem(bruta({ remoteJid: '120363000000000000@g.us', participant: '5521999999999@s.whatsapp.net' })));
+    assert.ok(await adaptarMensagem(bruta({ remoteJid: '205600134848521@lid' })));
+});
