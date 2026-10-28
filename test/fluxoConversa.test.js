@@ -434,6 +434,26 @@ test('"ok" ou emoji no meio da conversa não reenviam o menu; sem conversa em an
     assert.deepEqual(enviados, [{ destino: novo, texto: MENU_PRINCIPAL }]);
 });
 
+test('só emoji ou pontuação nunca recebe resposta, nem sem conversa em andamento nem em outros modos', async () => {
+    for (const corpo of ['👍', '🙏🙏🙏', '❤️', '😂😂', '!!', '...', '?', '  ']) {
+        const novo = novoChatId();
+        await tratarMensagem(criarMsg({ from: novo, body: corpo }));
+        assert.deepEqual(enviados, [], JSON.stringify(corpo));
+    }
+
+    const orando = novoChatId();
+    estado.definirModo(orando, MODO.ORACAO);
+    await tratarMensagem(criarMsg({ from: orando, body: '🙏' }));
+    assert.deepEqual(enviados, []);
+    assert.equal(estado.modoDe(orando), MODO.ORACAO, 'continua esperando o texto do pedido');
+    assert.equal(pedidos.pedidosPendentes.size, 0);
+
+    // Número e letra continuam valendo: "1" é uma opção do menu, "oi" abre o menu.
+    const novo = novoChatId();
+    await tratarMensagem(criarMsg({ from: novo, body: 'oi 🙏' }));
+    assert.ok(enviados.some(e => e.destino === novo && e.texto === MENU_PRINCIPAL));
+});
+
 test('pedido de oração: a confirmação vem numa mensagem só, sem repetir o menu', async () => {
     const chatId = novoChatId();
     estado.definirModo(chatId, MODO.ORACAO);

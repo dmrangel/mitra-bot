@@ -40,7 +40,6 @@ test('foto, áudio, figurinha e localização contam como mídia', async () => {
     for (const conteudo of [
         { imageMessage: { caption: 'olha' } },
         { audioMessage: {} },
-        { stickerMessage: {} },
         { locationMessage: {} }
     ]) {
         const msg = await adaptarMensagem(bruta({}, conteudo));
@@ -54,6 +53,57 @@ test('reação, apagar/editar e mensagens sem conteúdo são ignoradas (não rec
     assert.equal(await adaptarMensagem(bruta({}, { senderKeyDistributionMessage: {} })), null);
     assert.equal(await adaptarMensagem(bruta({}, null)), null);
     assert.equal(await adaptarMensagem(null), null);
+});
+
+test('figurinha e resposta a status são descartadas; texto comum com contexto de resposta segue valendo', async () => {
+    assert.equal(await adaptarMensagem(bruta({}, { stickerMessage: {} })), null);
+    assert.equal(await adaptarMensagem(bruta({}, { lottieStickerMessage: {} })), null);
+
+    // Responder a um status: texto + contexto apontando para status@broadcast.
+    assert.equal(await adaptarMensagem(bruta({}, {
+        extendedTextMessage: { text: 'amém!', contextInfo: { remoteJid: 'status@broadcast', quotedMessage: { conversation: 'x' } } }
+    })), null);
+    assert.equal(await adaptarMensagem(bruta({}, {
+        imageMessage: { caption: 'lindo', contextInfo: { remoteJid: 'status@broadcast' } }
+    })), null);
+
+    // Responder a uma mensagem normal (não é status) continua sendo conversa.
+    const msg = await adaptarMensagem(bruta({}, {
+        extendedTextMessage: { text: 'qual o horário?', contextInfo: { quotedMessage: { conversation: 'x' } } }
+    }));
+    assert.equal(msg.body, 'qual o horário?');
+});
+
+test('tipos desconhecidos (eventos de canal, reações novas, enquetes...) são descartados, não viram resposta', async () => {
+    for (const conteudo of [
+        { newsletterAdminInviteMessage: {} },
+        { reacaoQueOWhatsAppInventarAmanha: { text: '🙏' } },
+        { pollCreationMessage: { name: 'x' } },
+        { buttonsResponseMessage: { selectedButtonId: '1' } },
+        { messageContextInfo: {}, algumEventoNovo: {} },
+        { ephemeralMessage: { message: { reactionMessage: { text: '❤️' } } } }
+    ]) {
+        assert.equal(await adaptarMensagem(bruta({}, conteudo)), null, JSON.stringify(conteudo));
+    }
+});
+
+test('eventos de canal e reações vindos de qualquer tipo de conversa não geram mensagem', async () => {
+    for (const remoteJid of ['120363000000000000@newsletter', '5521999999999@s.whatsapp.net', 'status@broadcast', '120363000000000000@g.us']) {
+        assert.equal(await adaptarMensagem(bruta({ remoteJid }, { reactionMessage: { text: '🙏' } })), null, remoteJid);
+        assert.equal(await adaptarMensagem(bruta({ remoteJid }, { encReactionMessage: {} })), null, remoteJid);
+    }
+});
+
+test('mídia comum continua recebendo o aviso de "só texto" (foto, vídeo, documento, contato, vídeo-nota)', async () => {
+    for (const conteudo of [
+        { videoMessage: {} },
+        { documentMessage: {} },
+        { contactMessage: {} },
+        { ptvMessage: {} }
+    ]) {
+        const msg = await adaptarMensagem(bruta({}, conteudo));
+        assert.equal(msg.hasMedia, true, JSON.stringify(conteudo));
+    }
 });
 
 test('contato @lid com número alternativo usa o número como id e guarda os dois', async () => {
