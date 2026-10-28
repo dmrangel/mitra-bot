@@ -62,3 +62,10 @@ test('limite por minuto segura o envio excedente até abrir vaga', async (t) => 
     await terceiro;
     assert.equal(terceiroEnviado, true);
 });
+
+test('nunca envia para status, lista de transmissão ou canal', async () => {
+    for (const destino of ['status@broadcast', '123@broadcast', '120363000000000000@newsletter', '']) {
+        assert.equal(await enviar(destino, 'oi'), false);
+    }
+    assert.deepEqual(chamadas, []);
+});
